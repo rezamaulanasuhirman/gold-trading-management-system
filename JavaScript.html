@@ -1,0 +1,2973 @@
+<script>
+  // ============================================================
+  // SPA NAVIGATION
+  // ============================================================
+  function showPage(pageId, navEl) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + pageId).classList.add('active');
+
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    if (navEl) navEl.classList.add('active');
+
+    document.querySelector('.sidebar').classList.remove('open');
+
+    if (pageId === 'dashboard') loadDashboard();
+    if (pageId === 'laporan-harian') loadLaporanHarian();
+    if (pageId === 'laporan-bulanan') loadLaporanBulanan();
+    if (pageId === 'daily-trading') loadDailyTradingPage();
+    if (pageId === 'piutang') loadPiutangPage();
+    if (pageId === 'penetapan-harga') loadPenetapanHargaPage();
+    if (pageId === 'pembelian') loadPembelianPage();
+    if (pageId === 'invoice') loadInvoicePage();
+    if (pageId === 'history') loadAuditTrail();
+    if (pageId === 'settings') loadSettingsPage();
+    if (pageId === 'supplier-price') loadSupplierPriceTrend();
+    if (pageId === 'profile-mitra') loadMitraList();
+    if (pageId === 'benchmark') loadBenchmarkPage();
+    if (pageId === 'penjualan') loadPenjualanPage();
+    if (pageId === 'analytics') loadAnalyticsPage();
+  }
+
+  function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('open');
+  }
+
+  // ============================================================
+  // DARK MODE
+  // ============================================================
+  function toggleTheme() {
+    const root = document.documentElement;
+    const isDark = root.getAttribute('data-theme') === 'dark';
+    root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    const icon = document.getElementById('theme-icon');
+    icon.textContent = isDark ? 'dark_mode' : 'light_mode';
+  }
+
+  // ============================================================
+  // TOAST NOTIFICATION
+  // ============================================================
+  function showToast(message, type) {
+    type = type || 'success';
+    const container = document.getElementById('toast-container');
+    const icons = { success: 'check_circle', error: 'error', warning: 'warning' };
+    const el = document.createElement('div');
+    el.className = 'toast ' + type;
+    el.innerHTML =
+      '<span class="material-symbols-rounded" style="font-size:18px;">' + (icons[type] || 'info') + '</span>' +
+      '<span>' + message + '</span>';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // ============================================================
+  // FORMATTER
+  // ============================================================
+  function formatRupiah(num) {
+    num = Number(num) || 0;
+    return 'Rp' + num.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+  }
+  function formatRupiahShort(num) {
+    num = Number(num) || 0;
+    const abs = Math.abs(num);
+    if (abs >= 1e9) return 'Rp' + (num / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M';
+    if (abs >= 1e6) return 'Rp' + (num / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt';
+    return formatRupiah(num);
+  }
+  function formatGram(num) {
+    num = Number(num) || 0;
+    return num.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' gr';
+  }
+  function formatUsd(num) {
+    num = Number(num) || 0;
+    return '$' + Math.round(num).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+
+  /**
+   * Dipasang di oninput field harga (currency formatter).
+   * Membersihkan non-digit lalu format dengan pemisah ribuan ID.
+   */
+  function formatCurrencyInput(el) {
+    const raw = el.value.replace(/\D/g, '');
+    el.value = raw ? Number(raw).toLocaleString('id-ID') : '';
+  }
+  function getCurrencyValue(el) {
+    if (!el || !el.value) return 0;
+    return Number(el.value.replace(/\D/g, '')) || 0;
+  }
+
+  function todayISO() {
+    const d = new Date();
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().split('T')[0];
+  }
+
+  function cssColor(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  function setDefaultDates() {
+    ['sp-tanggal', 'bm-tanggal', 'ps-tanggal', 'ps-berlaku', 'ot-tanggal', 'inv-tanggal', 'pmb-tanggal', 'pjl-tanggal'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el.value) el.value = todayISO();
+    });
+  }
+
+  function resetForm(formId) {
+    document.getElementById(formId).reset();
+    setDefaultDates();
+    updateMarginPreview();
+    updateValuasiPreview();
+    updateNominalPreview();
+    if (document.getElementById('pmb-total-preview')) updatePembelianPreview();
+
+    if (formId === 'form-supplier-price') {
+      document.getElementById('sp-edit-id').value = '';
+      const btn = document.getElementById('sp-submit-btn');
+      btn.innerHTML = '<span class="material-symbols-rounded">save</span> Simpan';
+      btn.dataset.origLabel = btn.innerHTML;
+      document.getElementById('sp-cancel-edit-btn').style.display = 'none';
+    }
+    if (formId === 'form-pembelian') {
+      document.getElementById('pmb-edit-id').value = '';
+      const btn = document.getElementById('pmb-submit-btn');
+      btn.innerHTML = '<span class="material-symbols-rounded">save</span> Simpan';
+      btn.dataset.origLabel = btn.innerHTML;
+      document.getElementById('pmb-cancel-edit-btn').style.display = 'none';
+    }
+    if (formId === 'form-penjualan') {
+      document.getElementById('pjl-edit-id').value = '';
+      const btn = document.getElementById('pjl-submit-btn');
+      btn.innerHTML = '<span class="material-symbols-rounded">save</span> Simpan';
+      btn.dataset.origLabel = btn.innerHTML;
+      document.getElementById('pjl-cancel-edit-btn').style.display = 'none';
+      updatePenjualanPreview();
+    }
+  }
+
+  function setButtonLoading(btn, isLoading, label) {
+    if (!btn) return;
+    btn.disabled = isLoading;
+    btn.dataset.origLabel = btn.dataset.origLabel || btn.innerHTML;
+    btn.innerHTML = isLoading
+      ? '<span class="material-symbols-rounded">progress_activity</span> Menyimpan...'
+      : btn.dataset.origLabel;
+  }
+
+  // ============================================================
+  // TANGGAL HARI INI DI HEADER
+  // ============================================================
+  function renderTodayDate() {
+    const el = document.getElementById('topbar-date');
+    const now = new Date();
+    const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    el.textContent = now.toLocaleDateString('id-ID', opts);
+  }
+
+  // ============================================================
+  // LOAD USER (email + role) DI HEADER
+  // ============================================================
+  function loadCurrentUser() {
+    google.script.run
+      .withSuccessHandler(function (user) {
+        document.getElementById('u-name').textContent = user.Nama || user.Email;
+        document.getElementById('u-role').textContent = user.Role;
+        document.getElementById('u-avatar').textContent = (user.Nama || user.Email || '?').charAt(0).toUpperCase();
+      })
+      .withFailureHandler(function (err) {
+        console.error(err);
+        document.getElementById('u-name').textContent = 'Guest';
+        document.getElementById('u-role').textContent = '-';
+      })
+      .getCurrentUser();
+  }
+
+  // ============================================================
+  // LOAD DASHBOARD KPI (data real dari backend)
+  // ============================================================
+  function loadDashboard() {
+    setKpiLoading(true);
+    loadDashboardMarketStrip();
+
+    google.script.run.withSuccessHandler(renderSalesKpi).withFailureHandler(handleLoadError).getSalesSummaryAll();
+    google.script.run.withSuccessHandler(renderPembelianKpi).withFailureHandler(handleLoadError).getPembelianSummaryAll();
+    google.script.run.withSuccessHandler(renderMarginKpi).withFailureHandler(handleLoadError).calculateProfitMarginOverall();
+
+    google.script.run.withSuccessHandler(function (v) { renderSparkline('spark-penjualan', 'sparkPenjualan', v, cssColor('--color-primary')); }).withFailureHandler(handleLoadError).getPenjualanSparklineValues();
+    google.script.run.withSuccessHandler(function (v) { renderSparkline('spark-pembelian', 'sparkPembelian', v, cssColor('--color-gold')); }).withFailureHandler(handleLoadError).getPembelianSparklineValues();
+    google.script.run.withSuccessHandler(function (v) { renderSparkline('spark-margin', 'sparkMargin', v, '#8B5CF6'); }).withFailureHandler(handleLoadError).getMarginSparklineValues();
+
+    google.script.run.withSuccessHandler(renderAiSummary).withFailureHandler(handleLoadError).generateOverallSummary();
+    google.script.run.withSuccessHandler(renderAlerts).withFailureHandler(handleLoadError).getAlertsOverall();
+    // (Market Indicators dihapus)
+    google.script.run.withSuccessHandler(renderPiutangSupplierChart).withFailureHandler(handleLoadError).getPiutangLive(null);
+    google.script.run.withSuccessHandler(renderTopMerkChart).withFailureHandler(handleLoadError).getTopMerkPenjualan(5);
+    google.script.run.withSuccessHandler(renderSalesBuyerChart).withFailureHandler(handleLoadError).getSalesByBuyerAll();
+    google.script.run.withSuccessHandler(renderTopBuyerRank).withFailureHandler(handleLoadError).getTopBuyers(5);
+    google.script.run.withSuccessHandler(renderTopSupplierRank).withFailureHandler(handleLoadError).getTopSuppliers(5);
+    google.script.run.withSuccessHandler(renderMarginTrendChart).withFailureHandler(handleLoadError).getMarginTrendHarian(30);
+    google.script.run.withSuccessHandler(renderBarangTibaChart).withFailureHandler(handleLoadError).getBarangTibaTrend(30);
+  }
+
+  function handleLoadError(err) {
+    console.error(err);
+    showToast('Gagal memuat data: ' + (err.message || err), 'error');
+  }
+
+  function loadDashboardMarketStrip() {
+    const box = document.getElementById('dashboard-market-strip');
+    if (box) box.textContent = 'Memuat...';
+    google.script.run
+      .withSuccessHandler(function (ref) {
+        if (!box) return;
+        if (!ref) { box.textContent = 'Belum ada data market untuk hari ini.'; return; }
+        const items = [
+          ['Spot Gold', ref.spotGold, 'rp'],
+          ['XAUIDRK', ref.xauIdr, 'rp'],
+          ['LBMA', ref.lbma, 'usd'],
+          ['Kitco', ref.kitco, 'usd'],
+          ['Kurs Jual', ref.kursJual, 'rp'],
+          ['Kurs Beli', ref.kursBeli, 'rp'],
+          ['Rp LBMA', ref.rpLbma, 'rp'],
+          ['Rp Kitco', ref.rpKitco, 'rp']
+        ];
+        box.innerHTML = items.map(function (it) {
+          const val = it[1] == null ? '-' : (it[2] === 'usd' ? formatUsd(it[1]) : formatRupiah(it[1]));
+          return '<span style="white-space:nowrap;"><span style="color:var(--color-text-muted); font-weight:600;">' + it[0] + ':</span> <b>' + val + '</b></span>';
+        }).join('<span style="color:var(--color-border);">|</span>');
+      })
+      .withFailureHandler(function (err) {
+        console.error(err);
+        if (box) box.textContent = 'Gagal memuat data market.';
+      })
+      .getMarketBenchmarkLive(null);
+  }
+
+  function setKpiLoading(isLoading) {
+    document.querySelectorAll('.kpi-value, .kpi-sub').forEach(el => {
+      if (isLoading) { el.classList.add('skeleton'); el.innerHTML = '&nbsp;'; }
+    });
+  }
+  function clearKpiLoading(cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    card.querySelectorAll('.skeleton').forEach(el => el.classList.remove('skeleton'));
+  }
+
+  function renderSalesKpi(res) {
+    document.getElementById('kpi-sales-nominal').textContent = formatRupiah(res.totalNominal);
+    document.getElementById('kpi-sales-sub').innerHTML =
+      '<span><b>' + formatGram(res.totalGram) + '</b> gramasi</span><span><b>' + res.jumlahInvoice + '</b> invoice</span>';
+    clearKpiLoading('kpi-card-sales');
+  }
+  function renderPembelianKpi(res) {
+    document.getElementById('kpi-pembelian-nominal').textContent = formatRupiah(res.totalNominal);
+    document.getElementById('kpi-pembelian-sub').innerHTML =
+      '<span><b>' + formatGram(res.totalGram) + '</b> gramasi</span><span><b>' + res.jumlahTransaksi + '</b> transaksi</span>';
+    clearKpiLoading('kpi-card-pembelian');
+  }
+  function renderCheapestSupplierKpi(res) {
+    const val = document.getElementById('kpi-cheapest-value');
+    const sub = document.getElementById('kpi-cheapest-sub');
+    if (!res) {
+      val.textContent = '-';
+      sub.innerHTML = '<span>Belum ada data harga hari ini</span>';
+    } else {
+      val.textContent = res.supplierNama;
+      const selisihText = res.selisihDariBenchmark == null ? ''
+        : '<span>Selisih: <b>' + formatRupiah(res.selisihDariBenchmark) + '</b> vs Spot Gold</span>';
+      sub.innerHTML = '<span><b>' + formatRupiah(res.harga) + '</b>/gr</span>' + selisihText;
+    }
+    clearKpiLoading('kpi-card-cheapest');
+  }
+  function renderMarginKpi(res) {
+    document.getElementById('kpi-margin-avg').textContent = formatRupiah(res.profitMargin);
+    document.getElementById('kpi-margin-sub').innerHTML =
+      '<span>Penjualan: <b>' + formatRupiah(res.totalPenjualan) + '</b></span><span>Pembelian: <b>' + formatRupiah(res.totalPembelian) + '</b></span>';
+    clearKpiLoading('kpi-card-margin');
+  }
+  function renderBenchmarkKpi(res) {
+    const val = document.getElementById('kpi-benchmark-value');
+    const sub = document.getElementById('kpi-benchmark-sub');
+    if (!res) {
+      val.textContent = '-';
+      sub.innerHTML = '<span>Belum ada data benchmark hari ini</span>';
+    } else {
+      val.textContent = formatRupiah(res.SpotGold);
+      sub.innerHTML = '<span>LBMA: <b>' + formatRupiah(res.LBMA) + '</b></span><span>XAUIDRK: <b>' + formatRupiah(res.XAUIDRK) + '</b></span>';
+    }
+    clearKpiLoading('kpi-card-benchmark');
+  }
+
+  function refreshCurrentPage() {
+    showToast('Memuat ulang data...', 'success');
+    loadDashboard();
+  }
+
+  // ============================================================
+  // FASE 5 — AI SUMMARY & ALERT
+  // ============================================================
+  function renderAiSummary(text) {
+    document.getElementById('ai-summary-text').textContent = text || '-';
+  }
+
+  function renderAlerts(list) {
+    list = list || [];
+    const el = document.getElementById('ai-insight-text');
+    if (!el) return;
+    el.textContent = list.length ? list[0].message : 'Tidak ada insight khusus saat ini.';
+  }
+
+  /**
+   * Sparkline mini-chart tanpa sumbu/legend — dipakai di kartu KPI Dashboard.
+   */
+  function renderSparkline(canvasId, chartKey, values, color) {
+    values = values || [];
+    destroyChart(chartKey);
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    charts[chartKey] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: values.map((_, i) => i),
+        datasets: [{
+          data: values, borderColor: color, backgroundColor: color + '33',
+          fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+        elements: { line: { borderJoinStyle: 'round' } }
+      }
+    });
+  }
+
+  // ============================================================
+  // FASE 5 — CHART.JS INSTANCES
+  // ============================================================
+  var charts = {};
+
+  function destroyChart(key) {
+    if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+  }
+
+  function renderSupplierComparisonChart(list) {
+    list = list || [];
+    destroyChart('supplierComparison');
+    const ctx = document.getElementById('chart-supplier-comparison');
+    if (!ctx) return;
+    if (!list.length) { return; }
+
+    const colors = list.map(s => s.isCheapest ? cssColor('--color-success') : (s.isMostExpensive ? cssColor('--color-danger') : cssColor('--color-primary-light')));
+    charts.supplierComparison = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: list.map(s => s.supplierNama),
+        datasets: [{ label: 'Harga (Rp/gr)', data: list.map(s => s.harga), backgroundColor: colors, borderRadius: 6 }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { ticks: { callback: v => formatRupiah(v) } } }
+      }
+    });
+  }
+
+  function renderBenchmarkComparisonChart(res) {
+    destroyChart('benchmarkComparison');
+    const ctx = document.getElementById('chart-benchmark-comparison');
+    if (!ctx || !res || !res.labels.length) return;
+
+    charts.benchmarkComparison = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: res.labels,
+        datasets: [{ label: 'Harga (Rp/gr)', data: res.values, backgroundColor: cssColor('--color-gold'), borderRadius: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { ticks: { callback: v => formatRupiah(v) } } }
+      }
+    });
+  }
+
+  // ============================================================
+  // WIDGET DASHBOARD BARU — bar-list (menggantikan donut/bar chart
+  // untuk Piutang per Supplier, Penjualan per Buyer, Top 5 Merk)
+  // ============================================================
+  const BAR_LIST_PALETTE = ['#046A38', '#1E9E5A', '#6FCB9F', '#C9A227', '#D6483A', '#8B5CF6'];
+
+  function buildBarListRow(rank, name, colorHex, barPct, valueText, pctText) {
+    return '<div class="bar-list-row">' +
+      (rank != null ? '<div class="bar-list-rank">' + rank + '</div>' : '') +
+      '<div class="bar-list-main">' +
+        '<div class="bar-list-name">' + name + '</div>' +
+        '<div class="bar-list-track"><div class="bar-list-fill" style="width:' + Math.max(barPct, 3) + '%; background:' + colorHex + ';"></div></div>' +
+      '</div>' +
+      '<div class="bar-list-values">' +
+        '<div class="bar-list-value">' + valueText + '</div>' +
+        (pctText ? '<div class="bar-list-pct">' + pctText + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderPiutangSupplierChart(data) {
+    const rows = (data && data.rows) || [];
+    const totalValuasi = (data && data.totalValuasi) || 0;
+    const totalEl = document.getElementById('piutang-total-value');
+    if (totalEl) totalEl.textContent = formatRupiahShort(totalValuasi);
+
+    const listBox = document.getElementById('piutang-bar-list');
+    const insightBox = document.getElementById('piutang-insight-box');
+    if (!listBox) return;
+    if (!rows.length) {
+      listBox.innerHTML = '<div class="recent-empty">Belum ada piutang</div>';
+      if (insightBox) insightBox.style.display = 'none';
+      return;
+    }
+    if (insightBox) insightBox.style.display = 'flex';
+
+    const max = rows[0].valuasi || 1;
+    listBox.innerHTML = rows.map(function (r, i) {
+      const barPct = max ? (r.valuasi / max) * 100 : 0;
+      const color = BAR_LIST_PALETTE[i % BAR_LIST_PALETTE.length];
+      return buildBarListRow(null, r.supplierNama, color, barPct, formatRupiahShort(r.valuasi), r.valuasiPercent.toFixed(0) + '%');
+    }).join('');
+
+    const top = rows[0];
+    const topNameEl = document.getElementById('piutang-top-name');
+    const topPctEl = document.getElementById('piutang-top-pct');
+    if (topNameEl) topNameEl.textContent = top.supplierNama;
+    if (topPctEl) topPctEl.textContent = top.valuasiPercent.toFixed(0) + '% dari total piutang';
+  }
+
+  function renderTopMerkChart(data) {
+    const rows = (data && data.rows) || [];
+    const total = (data && data.total) || 0;
+    const listBox = document.getElementById('top-merk-bar-list');
+    if (!listBox) return;
+    if (!rows.length) { listBox.innerHTML = '<div class="recent-empty">Belum ada data Merk</div>'; return; }
+
+    const max = rows[0].nominal || 1;
+    listBox.innerHTML = rows.map(function (m, i) {
+      const barPct = max ? (m.nominal / max) * 100 : 0;
+      const color = BAR_LIST_PALETTE[i % BAR_LIST_PALETTE.length];
+      return buildBarListRow(i + 1, m.merk, color, barPct, formatRupiahShort(m.nominal), m.percent.toFixed(1) + '%');
+    }).join('');
+
+    const totalEl = document.getElementById('top-merk-total-value');
+    if (totalEl) totalEl.textContent = formatRupiahShort(total);
+  }
+
+  function renderSalesBuyerChart(list) {
+    list = list || [];
+    const listBox = document.getElementById('sales-buyer-bar-list');
+    if (!listBox) return;
+    if (!list.length) { listBox.innerHTML = '<div class="recent-empty">Belum ada data buyer</div>'; return; }
+
+    const top5 = list.slice(0, 5);
+    const max = top5[0].gram || 1;
+    listBox.innerHTML = top5.map(function (b, i) {
+      const barPct = max ? (b.gram / max) * 100 : 0;
+      return buildBarListRow(i + 1, b.buyerNama, '#046A38', barPct, formatGram(b.gram), null);
+    }).join('');
+
+    const totalBuyer = list.length;
+    const totalVolume = list.reduce(function (s, b) { return s + Number(b.gram || 0); }, 0);
+    const totalBuyerEl = document.getElementById('sales-buyer-total-count');
+    const totalVolumeEl = document.getElementById('sales-buyer-total-volume');
+    if (totalBuyerEl) totalBuyerEl.textContent = totalBuyer;
+    if (totalVolumeEl) totalVolumeEl.textContent = formatGram(totalVolume);
+  }
+
+  function renderMarginTrendChart(list) {
+    list = list || [];
+    destroyChart('marginTrend');
+    const ctx = document.getElementById('chart-margin-trend');
+    if (!ctx) return;
+
+    charts.marginTrend = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: list.map(d => d.tanggal.slice(5)),
+        datasets: [
+          {
+            label: 'Margin (%)', data: list.map(d => d.average), yAxisID: 'y',
+            borderColor: cssColor('--color-primary'), backgroundColor: cssColor('--color-primary-soft'),
+            fill: true, tension: 0.35, spanGaps: true
+          },
+          {
+            label: 'Margin (Rp)', data: list.map(d => d.marginRp), yAxisID: 'y1',
+            borderColor: cssColor('--color-gold'), backgroundColor: 'transparent',
+            borderDash: [5, 4], fill: false, tension: 0.35, spanGaps: true, pointRadius: 3
+          }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 10 } } },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                if (ctx.dataset.yAxisID === 'y1') return 'Margin: ' + (ctx.raw == null ? '-' : formatRupiah(ctx.raw));
+                return 'Margin: ' + (ctx.raw == null ? '-' : Number(ctx.raw).toFixed(2) + '%');
+              }
+            }
+          }
+        },
+        scales: {
+          y: { position: 'left', ticks: { callback: v => Number(v).toFixed(1) + '%' } },
+          y1: { position: 'right', ticks: { callback: v => formatRupiahShort(v) }, grid: { drawOnChartArea: false } }
+        }
+      }
+    });
+  }
+
+  var currentTrendDays = 7;
+  function renderPriceTrendChart(list) {
+    list = list || [];
+    destroyChart('priceTrend');
+    const ctx = document.getElementById('chart-price-trend');
+    if (!ctx) return;
+
+    charts.priceTrend = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: list.map(d => d.tanggal.slice(5)),
+        datasets: [{
+          label: 'Harga Rata-rata Supplier', data: list.map(d => d.average),
+          borderColor: cssColor('--color-gold'), backgroundColor: cssColor('--color-gold-soft'),
+          fill: true, tension: 0.35, spanGaps: true
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { ticks: { callback: v => formatRupiah(v) } } }
+      }
+    });
+  }
+
+  function renderBarangTibaChart(list) {
+    list = list || [];
+    destroyChart('priceTrend');
+    const ctx = document.getElementById('chart-price-trend');
+    if (!ctx) return;
+
+    charts.priceTrend = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: list.map(d => d.tanggal.slice(5)),
+        datasets: [{
+          label: 'Barang Tiba (gram)', data: list.map(d => d.total),
+          backgroundColor: cssColor('--color-gold'), borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 10 } } },
+          tooltip: { callbacks: { label: function (ctx) { return 'Barang Tiba: ' + (ctx.raw == null ? '-' : formatGram(ctx.raw)); } } }
+        },
+        scales: { y: { ticks: { callback: v => formatGram(v) } } }
+      }
+    });
+  }
+
+  function switchPriceTrend(days, tabEl) {
+    currentTrendDays = days;
+    document.querySelectorAll('.trend-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    google.script.run.withSuccessHandler(renderPriceTrendChart).withFailureHandler(handleLoadError).getPriceTrend(days);
+  }
+
+  // ============================================================
+  // FASE 5 — RANKING
+  // ============================================================
+  function renderTopBuyerRank(list) {
+    list = list || [];
+    const box = document.getElementById('rank-buyer-list');
+    if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada data buyer</div>'; return; }
+    box.innerHTML = list.map(function (b, idx) {
+      return '<div class="rank-row"><div class="rank-num">' + (idx + 1) + '</div>' +
+        '<div class="rank-info"><div class="rank-name">' + b.buyerNama + '</div>' +
+        '<div class="rank-sub">' + formatGram(b.totalGram) + ' · ' + b.jumlahInvoice + ' invoice</div></div>' +
+        '<div class="rank-val">' + formatRupiah(b.totalNominal) + '</div></div>';
+    }).join('');
+  }
+
+  function renderTopSupplierRank(list) {
+    list = list || [];
+    const box = document.getElementById('rank-supplier-list');
+    if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada data supplier</div>'; return; }
+    box.innerHTML = list.map(function (s, idx) {
+      return '<div class="rank-row"><div class="rank-num">' + (idx + 1) + '</div>' +
+        '<div class="rank-info"><div class="rank-name">' + s.supplierNama + '</div>' +
+        '<div class="rank-sub">' + s.jumlahTransaksi + ' transaksi · avg ' + formatRupiah(s.rataRataHarga) + '</div></div>' +
+        '<div class="rank-val">' + formatGram(s.totalGram) + '</div></div>';
+    }).join('');
+  }
+
+  // ============================================================
+  // DROPDOWN DATA (Supplier & Buyer)
+  // ============================================================
+  function populateSupplierSelect(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) {
+          sel.innerHTML = '<option value="">Tidak ada data supplier — cek koneksi database</option>';
+          return;
+        }
+        sel.innerHTML = '<option value="">Pilih supplier</option>' +
+          list.filter(s => s.Status === 'Aktif').map(s => '<option value="' + s.SupplierID + '">' + s.Nama + '</option>').join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getSuppliers();
+  }
+
+  function populateBuyerDatalist() {
+    const dl = document.getElementById('buyer-list');
+    if (!dl) return;
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        dl.innerHTML = list.map(b => '<option value="' + b.Nama + '">').join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getBuyers();
+  }
+
+  // ============================================================
+  // COMPUTED PREVIEW (margin, valuasi, nominal)
+  // ============================================================
+  function updateMarginPreview() {
+    const sale = getCurrencyValue(document.getElementById('ps-sale'));
+    const buyback = getCurrencyValue(document.getElementById('ps-buyback'));
+    const el = document.getElementById('ps-margin-preview');
+    if (el) el.textContent = formatRupiah(sale - buyback);
+  }
+  function updateValuasiPreview() {
+    const gram = Number(document.getElementById('ot-gramasi') ? document.getElementById('ot-gramasi').value : 0) || 0;
+    const harga = getCurrencyValue(document.getElementById('ot-harga'));
+    const el = document.getElementById('ot-valuasi-preview');
+    if (el) el.textContent = formatRupiah(gram * harga);
+  }
+  function updateNominalPreview() {
+    const gram = Number(document.getElementById('inv-gram') ? document.getElementById('inv-gram').value : 0) || 0;
+    const harga = getCurrencyValue(document.getElementById('inv-harga'));
+    const el = document.getElementById('inv-nominal-preview');
+    if (el) el.textContent = formatRupiah(gram * harga);
+  }
+
+  // ============================================================
+  // PAGE LOADERS
+  // ============================================================
+  function loadDailyTradingPage() {
+    populateSupplierSelect('sp-supplier');
+    setDefaultDates();
+    loadSupplierPriceRecent();
+    loadPriceSettingRecent();
+  }
+  function loadPiutangPage() {
+    populateSupplierSelect('ot-supplier');
+    setDefaultDates();
+    loadOutstandingRecent();
+  }
+  function loadInvoicePage() {
+    populateBuyerDatalist();
+    setDefaultDates();
+    loadInvoiceRecent();
+  }
+
+  var spRecentCache = [];
+  function loadSupplierPriceRecent() {
+    const box = document.getElementById('sp-recent-list');
+    if (!box) return;
+    box.innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        spRecentCache = list;
+        if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada input hari ini</div>'; return; }
+        box.innerHTML = list.map(function (r) {
+          return '<div class="recent-row"><div><div class="r-main">' + r.SupplierNama + '</div>' +
+            '<div class="r-sub">' + (r.Catatan || '-') + '</div></div>' +
+            '<div style="display:flex; align-items:center; gap:8px;">' +
+            '<div class="r-val">' + formatRupiah(r.HargaRataRata) + '</div>' +
+            '<button type="button" class="icon-btn" style="width:30px;height:30px;" title="Edit" onclick="editSupplierPrice(\'' + r.ID + '\')"><span class="material-symbols-rounded" style="font-size:16px;">edit</span></button>' +
+            '</div></div>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getSupplierPricesToday();
+  }
+
+  /**
+   * Mengisi form Supplier Price dengan data entri yang dipilih untuk
+   * diedit, lalu form berubah ke mode "Update" (bukan tambah baru).
+   */
+  function editSupplierPrice(id) {
+    const entry = spRecentCache.find(r => r.ID === id);
+    if (!entry) { showToast('Data tidak ditemukan, coba refresh', 'error'); return; }
+
+    document.getElementById('sp-edit-id').value = entry.ID;
+    document.getElementById('sp-tanggal').value = String(entry.Tanggal).split('T')[0];
+    document.getElementById('sp-supplier').value = entry.SupplierID;
+    document.getElementById('sp-harga1').value = entry.Harga1 ? Number(entry.Harga1).toLocaleString('id-ID') : '';
+    document.getElementById('sp-harga2').value = entry.Harga2 ? Number(entry.Harga2).toLocaleString('id-ID') : '';
+    document.getElementById('sp-harga3').value = entry.Harga3 ? Number(entry.Harga3).toLocaleString('id-ID') : '';
+    document.getElementById('sp-harga4').value = entry.Harga4 ? Number(entry.Harga4).toLocaleString('id-ID') : '';
+    document.getElementById('sp-catatan').value = entry.Catatan || '';
+
+    const btn = document.getElementById('sp-submit-btn');
+    btn.innerHTML = '<span class="material-symbols-rounded">save</span> Update';
+    btn.dataset.origLabel = btn.innerHTML;
+    document.getElementById('sp-cancel-edit-btn').style.display = 'inline-flex';
+
+    document.getElementById('form-supplier-price').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Mode edit — ubah harga lalu klik Update', 'warning');
+  }
+
+  function cancelEditSupplierPrice() {
+    document.getElementById('sp-edit-id').value = '';
+    const btn = document.getElementById('sp-submit-btn');
+    btn.innerHTML = '<span class="material-symbols-rounded">save</span> Simpan';
+    btn.dataset.origLabel = btn.innerHTML;
+    document.getElementById('sp-cancel-edit-btn').style.display = 'none';
+    resetForm('form-supplier-price');
+  }
+
+  function loadPriceSettingRecent() {
+    // Placeholder ringan — histori lengkap Penetapan Harga akan
+    // ditampilkan di halaman History pada Fase 5/6.
+  }
+
+  function loadOutstandingRecent() {
+    const box = document.getElementById('ot-recent-list');
+    if (!box) return;
+    box.innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { box.innerHTML = '<div class="recent-empty">Tidak ada outstanding aktif</div>'; return; }
+        box.innerHTML = list.map(function (r) {
+          return '<div class="recent-row"><div><div class="r-main">' + r.SupplierNama + '</div>' +
+            '<div class="r-sub">' + formatGram(r.Gramasi) + '</div></div>' +
+            '<div class="r-val">' + formatRupiah(r.Valuasi) + '</div></div>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getOutstandingActive();
+  }
+
+  function loadInvoiceRecent() {
+    const box = document.getElementById('inv-recent-list');
+    if (!box) return;
+    box.innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada invoice hari ini</div>'; return; }
+        box.innerHTML = list.map(function (r) {
+          return '<div class="recent-row"><div><div class="r-main">' + r.NomorInvoice + ' — ' + r.BuyerNama + '</div>' +
+            '<div class="r-sub">' + formatGram(r.Gram) + ' · ' + r.Status + '</div></div>' +
+            '<div class="r-val">' + formatRupiah(r.Nominal) + '</div></div>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getInvoicesToday();
+  }
+
+  // ============================================================
+  // FORM SUBMIT — SUPPLIER PRICE
+  // ============================================================
+  function submitSupplierPrice(evt) {
+    evt.preventDefault();
+    const supplierSel = document.getElementById('sp-supplier');
+    if (!supplierSel.value) { showToast('Pilih supplier terlebih dahulu', 'warning'); return false; }
+
+    const editId = document.getElementById('sp-edit-id').value;
+    const data = {
+      Tanggal: document.getElementById('sp-tanggal').value,
+      SupplierID: supplierSel.value,
+      SupplierNama: supplierSel.options[supplierSel.selectedIndex].text,
+      Harga1: getCurrencyValue(document.getElementById('sp-harga1')),
+      Harga2: getCurrencyValue(document.getElementById('sp-harga2')),
+      Harga3: getCurrencyValue(document.getElementById('sp-harga3')),
+      Harga4: getCurrencyValue(document.getElementById('sp-harga4')),
+      Catatan: document.getElementById('sp-catatan').value
+    };
+    if (!data.Harga1 && !data.Harga2 && !data.Harga3 && !data.Harga4) {
+      showToast('Isi minimal satu harga', 'warning'); return false;
+    }
+
+    const btn = document.getElementById('sp-submit-btn');
+    setButtonLoading(btn, true);
+
+    if (editId) {
+      google.script.run
+        .withSuccessHandler(function () {
+          setButtonLoading(btn, false);
+          showToast('Harga supplier berhasil diperbarui', 'success');
+          cancelEditSupplierPrice();
+          loadSupplierPriceRecent();
+          loadDashboard();
+        })
+        .withFailureHandler(function (err) {
+          setButtonLoading(btn, false);
+          showToast('Gagal memperbarui: ' + (err.message || err), 'error');
+        })
+        .updateSupplierPrice(editId, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function () {
+          setButtonLoading(btn, false);
+          showToast('Harga supplier berhasil disimpan', 'success');
+          resetForm('form-supplier-price');
+          loadSupplierPriceRecent();
+        })
+        .withFailureHandler(function (err) {
+          setButtonLoading(btn, false);
+          showToast('Gagal menyimpan: ' + (err.message || err), 'error');
+        })
+        .addSupplierPrice(data);
+    }
+    return false;
+  }
+
+  // ============================================================
+  // FORM SUBMIT — BENCHMARK
+  // ============================================================
+  function submitBenchmark(evt) {
+    evt.preventDefault();
+    const data = {
+      Tanggal: document.getElementById('bm-tanggal').value,
+      SpotGold: getCurrencyValue(document.getElementById('bm-spotgold')),
+      XAUIDRK: getCurrencyValue(document.getElementById('bm-xauidrk')),
+      LBMA: Number(document.getElementById('bm-lbma').value) || 0,
+      Kitco: Number(document.getElementById('bm-kitco').value) || 0
+    };
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('Benchmark market berhasil disimpan', 'success');
+        resetForm('form-benchmark');
+        loadDashboard();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+      .addBenchmarkPrice(data);
+    return false;
+  }
+
+  // ============================================================
+  // FORM SUBMIT — PRICE SETTING
+  // ============================================================
+  function submitPriceSetting(evt) {
+    evt.preventDefault();
+    const data = {
+      Tanggal: document.getElementById('ps-tanggal').value,
+      HargaSale: getCurrencyValue(document.getElementById('ps-sale')),
+      HargaBuyback: getCurrencyValue(document.getElementById('ps-buyback')),
+      TanggalBerlaku: document.getElementById('ps-berlaku').value
+    };
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('Penetapan harga berhasil disimpan', 'success');
+        resetForm('form-price-setting');
+        loadDashboard();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+      .addPriceSetting(data);
+    return false;
+  }
+
+  // ============================================================
+  // FORM SUBMIT — OUTSTANDING
+  // ============================================================
+  function submitOutstanding(evt) {
+    evt.preventDefault();
+    const supplierSel = document.getElementById('ot-supplier');
+    if (!supplierSel.value) { showToast('Pilih supplier terlebih dahulu', 'warning'); return false; }
+
+    const data = {
+      Tanggal: document.getElementById('ot-tanggal').value,
+      SupplierID: supplierSel.value,
+      SupplierNama: supplierSel.options[supplierSel.selectedIndex].text,
+      Gramasi: Number(document.getElementById('ot-gramasi').value) || 0,
+      HargaDasar: getCurrencyValue(document.getElementById('ot-harga')),
+      Status: document.getElementById('ot-status').value,
+      Keterangan: document.getElementById('ot-keterangan').value
+    };
+    if (!data.Gramasi || !data.HargaDasar) { showToast('Isi gramasi dan harga dasar', 'warning'); return false; }
+
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('Piutang berhasil disimpan', 'success');
+        resetForm('form-outstanding');
+        loadOutstandingRecent();
+        loadDashboard();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+      .addOutstanding(data);
+    return false;
+  }
+
+  // ============================================================
+  // FORM SUBMIT — INVOICE (otomatis cari/buat buyer dulu)
+  // ============================================================
+  function submitInvoice(evt) {
+    evt.preventDefault();
+    const buyerName = document.getElementById('inv-buyer').value.trim();
+    if (!buyerName) { showToast('Isi nama buyer', 'warning'); return false; }
+
+    const baseData = {
+      NomorInvoice: document.getElementById('inv-nomor').value,
+      Tanggal: document.getElementById('inv-tanggal').value,
+      Harga: getCurrencyValue(document.getElementById('inv-harga')),
+      Gram: Number(document.getElementById('inv-gram').value) || 0,
+      Status: document.getElementById('inv-status').value,
+      Catatan: document.getElementById('inv-catatan').value
+    };
+    if (!baseData.NomorInvoice || !baseData.Harga || !baseData.Gram) {
+      showToast('Lengkapi nomor invoice, harga, dan gram', 'warning'); return false;
+    }
+
+    google.script.run
+      .withSuccessHandler(function (buyerId) {
+        const data = Object.assign({}, baseData, { BuyerID: buyerId, BuyerNama: buyerName });
+        google.script.run
+          .withSuccessHandler(function () {
+            showToast('Invoice berhasil disimpan', 'success');
+            resetForm('form-invoice');
+            loadInvoiceRecent();
+            loadDashboard();
+          })
+          .withFailureHandler(function (err) { showToast('Gagal menyimpan invoice: ' + (err.message || err), 'error'); })
+          .addInvoice(data);
+      })
+      .withFailureHandler(function (err) { showToast('Gagal memproses buyer: ' + (err.message || err), 'error'); })
+      .findOrCreateBuyer(buyerName);
+    return false;
+  }
+
+  // ============================================================
+  // HALAMAN PEMBELIAN
+  // ============================================================
+  function loadPembelianPage() {
+    populateSellerDatalist();
+    setDefaultDates();
+    loadPembelianRecent();
+    loadPembelianHistoryTable();
+  }
+
+  function populateSellerDatalist() {
+    const dl = document.getElementById('seller-list');
+    if (!dl) return;
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        dl.innerHTML = list.map(s => '<option value="' + s.Nama + '">').join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getSuppliers();
+  }
+
+  function updatePembelianPreview() {
+    const qty = Number(document.getElementById('pmb-qty') ? document.getElementById('pmb-qty').value : 0) || 0;
+    const harga = getCurrencyValue(document.getElementById('pmb-harga'));
+    const afterDiskonRaw = document.getElementById('pmb-after-diskon').value;
+    const afterDiskon = afterDiskonRaw ? getCurrencyValue(document.getElementById('pmb-after-diskon')) : harga;
+    const total = qty * afterDiskon;
+    const wapu = total * 0.0025;
+    const include = total - wapu;
+    document.getElementById('pmb-total-preview').textContent = formatRupiah(total);
+    document.getElementById('pmb-wapu-preview').textContent = formatRupiah(wapu);
+    document.getElementById('pmb-include-preview').textContent = formatRupiah(include);
+  }
+
+  var pmbRecentCache = [];
+  function loadPembelianRecent() {
+    const box = document.getElementById('pmb-recent-list');
+    if (!box) return;
+    box.innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        pmbRecentCache = list;
+        if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada pembelian hari ini</div>'; return; }
+        box.innerHTML = list.map(function (r) {
+          return '<div class="recent-row"><div><div class="r-main">' + r.Seller + '</div>' +
+            '<div class="r-sub">' + formatGram(r.Qty) + ' · PO ' + r.NomorPO + '</div></div>' +
+            '<div style="display:flex; align-items:center; gap:8px;">' +
+            '<div class="r-val">' + formatRupiah(r.TotalHargaIncludePajak) + '</div>' +
+            '<button type="button" class="icon-btn" style="width:30px;height:30px;" title="Edit" onclick="editPembelian(\'' + r.ID + '\')"><span class="material-symbols-rounded" style="font-size:16px;">edit</span></button>' +
+            '</div></div>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getPembelianTransaksiToday();
+  }
+
+  function editPembelian(id) {
+    const entry = pmbRecentCache.find(r => r.ID === id);
+    if (!entry) { showToast('Data tidak ditemukan, coba refresh', 'error'); return; }
+
+    document.getElementById('pmb-edit-id').value = entry.ID;
+    document.getElementById('pmb-tanggal').value = String(entry.Tanggal).split('T')[0];
+    document.getElementById('pmb-nomor-po').value = entry.NomorPO;
+    document.getElementById('pmb-seller').value = entry.Seller;
+    document.getElementById('pmb-qty').value = entry.Qty;
+    document.getElementById('pmb-harga').value = entry.Harga ? Number(entry.Harga).toLocaleString('id-ID') : '';
+    document.getElementById('pmb-after-diskon').value = entry.AfterDiskon ? Number(entry.AfterDiskon).toLocaleString('id-ID') : '';
+    document.getElementById('pmb-invoice-ref').value = entry.InvoiceRef || '';
+    document.getElementById('pmb-catatan').value = entry.Catatan === 'Diimpor dari spreadsheet lama' ? '' : (entry.Catatan || '');
+    updatePembelianPreview();
+
+    const btn = document.getElementById('pmb-submit-btn');
+    btn.innerHTML = '<span class="material-symbols-rounded">save</span> Update';
+    btn.dataset.origLabel = btn.innerHTML;
+    document.getElementById('pmb-cancel-edit-btn').style.display = 'inline-flex';
+    document.getElementById('form-pembelian').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Mode edit — ubah data lalu klik Update', 'warning');
+  }
+
+  function cancelEditPembelian() {
+    document.getElementById('pmb-edit-id').value = '';
+    const btn = document.getElementById('pmb-submit-btn');
+    btn.innerHTML = '<span class="material-symbols-rounded">save</span> Simpan';
+    btn.dataset.origLabel = btn.innerHTML;
+    document.getElementById('pmb-cancel-edit-btn').style.display = 'none';
+    resetForm('form-pembelian');
+  }
+
+  function submitPembelian(evt) {
+    evt.preventDefault();
+    const seller = document.getElementById('pmb-seller').value.trim();
+    if (!seller) { showToast('Isi nama seller/supplier', 'warning'); return false; }
+
+    const editId = document.getElementById('pmb-edit-id').value;
+    const harga = getCurrencyValue(document.getElementById('pmb-harga'));
+    const afterDiskonRaw = document.getElementById('pmb-after-diskon').value;
+    const data = {
+      Tanggal: document.getElementById('pmb-tanggal').value,
+      NomorPO: document.getElementById('pmb-nomor-po').value,
+      Seller: seller,
+      Qty: Number(document.getElementById('pmb-qty').value) || 0,
+      Harga: harga,
+      AfterDiskon: afterDiskonRaw ? getCurrencyValue(document.getElementById('pmb-after-diskon')) : harga,
+      InvoiceRef: document.getElementById('pmb-invoice-ref').value,
+      Catatan: document.getElementById('pmb-catatan').value
+    };
+    if (!data.NomorPO || !data.Qty || !data.Harga) { showToast('Lengkapi Nomor PO, Qty, dan Harga', 'warning'); return false; }
+
+    const btn = document.getElementById('pmb-submit-btn');
+    setButtonLoading(btn, true);
+
+    if (editId) {
+      google.script.run
+        .withSuccessHandler(function () {
+          setButtonLoading(btn, false);
+          showToast('Pembelian berhasil diperbarui', 'success');
+          cancelEditPembelian();
+          loadPembelianRecent();
+          loadPembelianHistoryTable();
+        })
+        .withFailureHandler(function (err) { setButtonLoading(btn, false); showToast('Gagal memperbarui: ' + (err.message || err), 'error'); })
+        .updatePembelianTransaksi(editId, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function () {
+          setButtonLoading(btn, false);
+          showToast('Pembelian berhasil disimpan', 'success');
+          resetForm('form-pembelian');
+          loadPembelianRecent();
+          loadPembelianHistoryTable();
+        })
+        .withFailureHandler(function (err) { setButtonLoading(btn, false); showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+        .addPembelianTransaksi(data);
+    }
+    return false;
+  }
+
+  function loadPembelianHistoryTable() {
+    const body = document.getElementById('pembelian-history-body');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="7" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { body.innerHTML = '<tr><td colspan="7" class="recent-empty">Belum ada data dalam 30 hari terakhir</td></tr>'; return; }
+        body.innerHTML = list.map(function (p) {
+          return '<tr><td>' + String(p.Tanggal).split('T')[0] + '</td><td>' + p.NomorPO + '</td><td>' + p.Seller + '</td>' +
+            '<td>' + formatGram(p.Qty) + '</td><td>' + formatRupiah(p.AfterDiskon) + '</td>' +
+            '<td><b>' + formatRupiah(p.TotalHargaIncludePajak) + '</b></td>' +
+            '<td>' + (p.InvoiceRef || '-') + '</td></tr>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getPembelianTransaksiRecent(30);
+  }
+  function loadAuditTrail() {
+    const body = document.getElementById('audit-table-body');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="5" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { body.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada aktivitas tercatat</td></tr>'; return; }
+        body.innerHTML = list.map(function (a) {
+          const waktu = a.Timestamp ? new Date(a.Timestamp).toLocaleString('id-ID') : '-';
+          return '<tr><td>' + waktu + '</td><td>' + a.User + '</td><td>' + a.Action + '</td><td>' + a.Module + '</td><td>' + (a.Detail || '-') + '</td></tr>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getAuditTrail(50);
+  }
+
+  // ============================================================
+  // FASE 6 — SETTINGS: ROLE MANAGEMENT & SUPPLIER MANAGEMENT
+  // ============================================================
+  function loadSettingsPage() {
+    loadUsersTable();
+    loadSuppliersTable();
+  }
+
+  function loadUsersTable() {
+    const body = document.getElementById('user-table-body');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="4" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { body.innerHTML = '<tr><td colspan="4" class="recent-empty">Belum ada user</td></tr>'; return; }
+        body.innerHTML = list.map(function (u) {
+          return '<tr><td>' + u.Nama + '</td><td>' + u.Email + '</td>' +
+            '<td><select class="role-select" onchange="submitUpdateRole(\'' + u.UserID + '\', this.value)">' +
+            ['Viewer', 'Supervisor', 'Admin'].map(r => '<option value="' + r + '"' + (r === u.Role ? ' selected' : '') + '>' + r + '</option>').join('') +
+            '</select></td>' +
+            '<td><span class="badge ' + (u.Status === 'Aktif' ? 'green' : 'gray') + '">' + u.Status + '</span></td></tr>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getUsers();
+  }
+
+  function submitSyncTransaksi() {
+    const box = document.getElementById('sync-result');
+    box.textContent = 'Sedang sync, mohon tunggu...';
+    google.script.run.withSuccessHandler(function (res) {
+      box.textContent = 'Selesai: ' + res.penjualan + ' Penjualan baru (' + res.penjualanUpdate + ' diperbarui), ' +
+        res.pembelian + ' Pembelian baru (' + res.pembelianUpdate + ' diperbarui).';
+      showToast('Sync selesai — ' + res.penjualan + ' Penjualan baru, ' + res.pembelian + ' Pembelian baru', 'success');
+    }).withFailureHandler(function (err) {
+      box.textContent = 'Gagal: ' + (err.message || err);
+      handleLoadError(err);
+    }).syncTransaksiBaru();
+  }
+
+  function submitAddUser() {
+    const email = document.getElementById('user-email').value.trim();
+    const nama = document.getElementById('user-nama').value.trim();
+    const role = document.getElementById('user-role').value;
+    if (!email || !nama) { showToast('Isi email dan nama user', 'warning'); return; }
+
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('User berhasil ditambahkan', 'success');
+        document.getElementById('user-email').value = '';
+        document.getElementById('user-nama').value = '';
+        loadUsersTable();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menambah user: ' + (err.message || err), 'error'); })
+      .addUser(email, nama, role);
+  }
+
+  function submitUpdateRole(userId, role) {
+    google.script.run
+      .withSuccessHandler(function () { showToast('Role berhasil diubah', 'success'); })
+      .withFailureHandler(function (err) { showToast('Gagal mengubah role: ' + (err.message || err), 'error'); loadUsersTable(); })
+      .updateUserRole(userId, role);
+  }
+
+  function loadSuppliersTable() {
+    const body = document.getElementById('supplier-table-body');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="2" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { body.innerHTML = '<tr><td colspan="2" class="recent-empty">Belum ada supplier</td></tr>'; return; }
+        body.innerHTML = list.map(function (s) {
+          return '<tr><td>' + s.Nama + '</td><td><span class="badge ' + (s.Status === 'Aktif' ? 'green' : 'gray') + '">' + s.Status + '</span></td></tr>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getSuppliers();
+  }
+
+  function submitAddSupplier() {
+    const nama = document.getElementById('new-supplier-nama').value.trim();
+    if (!nama) { showToast('Isi nama supplier', 'warning'); return; }
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('Supplier berhasil ditambahkan', 'success');
+        document.getElementById('new-supplier-nama').value = '';
+        loadSuppliersTable();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menambah supplier: ' + (err.message || err), 'error'); })
+      .addSupplier(nama);
+  }
+
+  // ============================================================
+  // FASE 6 — EXPORT PDF / EXCEL
+  // ============================================================
+  function exportExcel() {
+    showToast('Menyiapkan file Excel...', 'success');
+    google.script.run
+      .withSuccessHandler(function (urls) { window.open(urls.xlsxUrl, '_blank'); })
+      .withFailureHandler(function (err) { showToast('Gagal export: ' + (err.message || err), 'error'); })
+      .getExportUrls();
+  }
+
+  function exportPdf() {
+    showToast('Menyiapkan PDF...', 'success');
+    google.script.run
+      .withSuccessHandler(function (urls) { window.open(urls.pdfUrl, '_blank'); })
+      .withFailureHandler(function (err) { showToast('Gagal export: ' + (err.message || err), 'error'); })
+      .getExportUrls();
+  }
+
+  // ============================================================
+  // HALAMAN SUPPLIER PRICE
+  // ============================================================
+  function loadSupplierPricePage() {
+    google.script.run.withSuccessHandler(renderSupplierPricePageChart).withFailureHandler(handleLoadError).getSupplierComparisonToday();
+    google.script.run.withSuccessHandler(renderSupplierPriceHistoryTable).withFailureHandler(handleLoadError).getSupplierPricesRecent(30);
+  }
+
+  function renderSupplierPricePageChart(list) {
+    list = list || [];
+    destroyChart('supplierPricePage');
+    const ctx = document.getElementById('chart-supplier-price-page');
+    if (!ctx || !list.length) return;
+    const colors = list.map(s => s.isCheapest ? cssColor('--color-success') : (s.isMostExpensive ? cssColor('--color-danger') : cssColor('--color-primary-light')));
+    charts.supplierPricePage = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: list.map(s => s.supplierNama), datasets: [{ label: 'Harga (Rp/gr)', data: list.map(s => s.harga), backgroundColor: colors, borderRadius: 6 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: v => formatRupiah(v) } } } }
+    });
+  }
+
+  function renderSupplierPriceHistoryTable(list) {
+    list = list || [];
+    const body = document.getElementById('supplier-price-history-body');
+    if (!list.length) { body.innerHTML = '<tr><td colspan="8" class="recent-empty">Belum ada data dalam 30 hari terakhir</td></tr>'; return; }
+    body.innerHTML = list.map(function (p) {
+      return '<tr><td>' + String(p.Tanggal).split('T')[0] + '</td><td>' + p.SupplierNama + '</td>' +
+        '<td>' + (p.Harga1 ? formatRupiah(p.Harga1) : '-') + '</td><td>' + (p.Harga2 ? formatRupiah(p.Harga2) : '-') + '</td>' +
+        '<td>' + (p.Harga3 ? formatRupiah(p.Harga3) : '-') + '</td><td>' + (p.Harga4 ? formatRupiah(p.Harga4) : '-') + '</td>' +
+        '<td><b>' + formatRupiah(p.HargaRataRata) + '</b></td><td>' + (p.Catatan || '-') + '</td></tr>';
+    }).join('');
+  }
+
+  // ============================================================
+  // HALAMAN BENCHMARK MARKET
+  // ============================================================
+  function loadBenchmarkPage() {
+    google.script.run
+      .withSuccessHandler(function (b) {
+        document.getElementById('mini-spotgold').textContent = b ? formatRupiah(b.SpotGold) : '-';
+        document.getElementById('mini-lbma').textContent = b ? formatUsd(b.LBMA) : '-';
+        document.getElementById('mini-xauidrk').textContent = b ? formatRupiah(b.XAUIDRK) : '-';
+        document.getElementById('mini-kitco').textContent = b ? formatUsd(b.Kitco) : '-';
+      })
+      .withFailureHandler(handleLoadError)
+      .getTodayBenchmark(null);
+    switchBenchmarkTrend(7, document.querySelector('#page-benchmark .trend-tab'));
+  }
+
+  function renderBenchmarkTrendChart(list) {
+    list = list || [];
+    destroyChart('benchmarkTrend');
+    const ctx = document.getElementById('chart-benchmark-trend');
+    if (!ctx) return;
+    charts.benchmarkTrend = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: list.map(d => d.tanggal.slice(5)),
+        datasets: [
+          { label: 'Spot Gold (Rp)', data: list.map(d => d.spotGold), borderColor: cssColor('--color-gold'), tension: 0.35, spanGaps: true, yAxisID: 'y' },
+          { label: 'LBMA (USD)', data: list.map(d => d.lbma), borderColor: cssColor('--color-primary'), tension: 0.35, spanGaps: true, yAxisID: 'y1' },
+          { label: 'XAUIDRK (Rp)', data: list.map(d => d.xauidrk), borderColor: cssColor('--color-danger'), tension: 0.35, spanGaps: true, yAxisID: 'y' },
+          { label: 'Kitco (USD)', data: list.map(d => d.kitco), borderColor: cssColor('--color-text-muted'), tension: 0.35, spanGaps: true, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                const isUsd = ctx.dataset.yAxisID === 'y1';
+                const val = ctx.parsed.y;
+                return ctx.dataset.label + ': ' + (val == null ? '-' : (isUsd ? formatUsd(val) : formatRupiah(val)));
+              }
+            }
+          }
+        },
+        scales: {
+          y: { position: 'left', ticks: { callback: v => formatRupiah(v) } },
+          y1: { position: 'right', ticks: { callback: v => formatUsd(v) }, grid: { drawOnChartArea: false } }
+        }
+      }
+    });
+  }
+
+  function switchBenchmarkTrend(days, tabEl) {
+    document.querySelectorAll('#page-benchmark .trend-tab').forEach(t => t.classList.remove('active'));
+    if (tabEl) tabEl.classList.add('active');
+    google.script.run.withSuccessHandler(renderBenchmarkTrendChart).withFailureHandler(handleLoadError).getBenchmarkTrend(days);
+  }
+
+  // ============================================================
+  // HALAMAN PENJUALAN
+  // ============================================================
+  function loadPenjualanPage() {
+    google.script.run
+      .withSuccessHandler(function (s) {
+        document.getElementById('mini-sales-nominal').textContent = formatRupiah(s.totalNominal);
+        document.getElementById('mini-sales-gram').textContent = formatGram(s.totalGram);
+        document.getElementById('mini-sales-count').textContent = s.jumlahInvoice;
+      })
+      .withFailureHandler(handleLoadError)
+      .getSalesSummaryAll();
+
+    google.script.run.withSuccessHandler(renderSalesBuyerPageChart).withFailureHandler(handleLoadError).getSalesByBuyerAll();
+    populateMerkSelect();
+    populatePembeliDatalist();
+    loadPenjualanRecent();
+    loadPenjualanHistoryTable();
+  }
+
+  function populateMerkSelect() {
+    const sel = document.getElementById('pjl-merk');
+    if (!sel) return;
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        sel.innerHTML = '<option value="">Pilih merk</option>' + list.map(s => '<option value="' + s.Nama + '">' + s.Nama + '</option>').join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getSuppliers();
+  }
+
+  function populatePembeliDatalist() {
+    const dl = document.getElementById('pembeli-list');
+    if (!dl) return;
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        const names = [...new Set(list.map(p => p.Pembeli))];
+        dl.innerHTML = names.map(n => '<option value="' + n + '">').join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getPenjualanTransaksi();
+  }
+
+  function updatePenjualanPreview() {
+    const harga = getCurrencyValue(document.getElementById('pjl-harga'));
+    const qty = Number(document.getElementById('pjl-qty') ? document.getElementById('pjl-qty').value : 0) || 0;
+    const total = harga * qty;
+    const pph = total * 0.0025;
+    document.getElementById('pjl-total-preview').textContent = formatRupiah(total);
+    document.getElementById('pjl-pph-preview').textContent = formatRupiah(pph);
+    document.getElementById('pjl-aftertax-preview').textContent = formatRupiah(total + pph);
+  }
+
+  // ============================================================
+  // PENJUALAN — RECENT LIST (dengan tombol Confirmation Deal Email)
+  // ============================================================
+  var pjlRecentCache = [];
+  function loadPenjualanRecent() {
+    const box = document.getElementById('pjl-recent-list');
+    if (!box) return;
+    box.innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        pjlRecentCache = list;
+        if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada penjualan hari ini</div>'; return; }
+        box.innerHTML = list.map(function (r) {
+          return '<div class="recent-row"><div><div class="r-main">' + r.Pembeli + '</div>' +
+            '<div class="r-sub">' + formatGram(r.Qty) + ' · ' + r.NomorInvoice + '</div></div>' +
+            '<div style="display:flex; align-items:center; gap:8px;">' +
+            '<div class="r-val">' + formatRupiah(r.TotalHarga) + '</div>' +
+            '<button type="button" class="icon-btn" style="width:30px;height:30px;" title="Kirim Confirmation Deal" onclick="sendDealEmailConfirm(\'' + r.ID + '\', \'' + r.NomorInvoice + '\')"><span class="material-symbols-rounded" style="font-size:16px;">mail</span></button>' +
+            '<button type="button" class="icon-btn" style="width:30px;height:30px;" title="Edit" onclick="editPenjualan(\'' + r.ID + '\')"><span class="material-symbols-rounded" style="font-size:16px;">edit</span></button>' +
+            '</div></div>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getPenjualanTransaksiToday();
+  }
+
+  /**
+   * Konfirmasi lalu kirim email Confirmation Deal untuk satu
+   * transaksi Penjualan. Email tujuan diambil otomatis oleh
+   * backend dari Master_Customer (kolom Email PIC).
+   */
+  // ============================================================
+  // MODAL — Kirim Confirmation Deal (multi email tujuan + CC)
+  // ============================================================
+  var dealEmailModalTransaksiId = null;
+
+  function sendDealEmailConfirm(transaksiId, invoiceLabel) {
+    dealEmailModalTransaksiId = transaksiId;
+    document.getElementById('deal-modal-invoice-label').textContent = invoiceLabel;
+    document.getElementById('deal-modal-to').value = '';
+    document.getElementById('deal-modal-cc').value = '';
+    document.getElementById('deal-email-modal-overlay').style.display = 'flex';
+
+    // Isi otomatis field "To" dengan Email PIC dari Master_Customer (tetap bisa diedit/ditambah).
+    google.script.run
+      .withSuccessHandler(function (res) {
+        const toEl = document.getElementById('deal-modal-to');
+        if (toEl && !toEl.value && res && res.emailDefault) toEl.value = res.emailDefault;
+      })
+      .withFailureHandler(function () { /* diamkan — user tetap bisa isi manual */ })
+      .getConfirmationDealPrefill(transaksiId);
+  }
+
+  function closeDealEmailModal() {
+    document.getElementById('deal-email-modal-overlay').style.display = 'none';
+    dealEmailModalTransaksiId = null;
+  }
+
+  function submitDealEmailModal() {
+    const transaksiId = dealEmailModalTransaksiId;
+    if (!transaksiId) return;
+    const to = document.getElementById('deal-modal-to').value.trim();
+    const cc = document.getElementById('deal-modal-cc').value.trim();
+
+    const btn = document.getElementById('deal-modal-send-btn');
+    setButtonLoading(btn, true);
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        setButtonLoading(btn, false);
+        closeDealEmailModal();
+        showToast('Email confirmation deal berhasil dikirim ke ' + res.to + (res.cc ? ' (CC: ' + res.cc + ')' : ''), 'success');
+      })
+      .withFailureHandler(function (err) {
+        setButtonLoading(btn, false);
+        showToast('Gagal mengirim email: ' + (err.message || err), 'error');
+      })
+      .sendConfirmationDealEmail(transaksiId, to, cc);
+  }
+
+  function editPenjualan(id) {
+    const entry = pjlRecentCache.find(r => r.ID === id);
+    if (!entry) { showToast('Data tidak ditemukan, coba refresh', 'error'); return; }
+
+    document.getElementById('pjl-edit-id').value = entry.ID;
+    document.getElementById('pjl-tanggal').value = String(entry.Tanggal).split('T')[0];
+    document.getElementById('pjl-nomor-invoice').value = entry.NomorInvoice;
+    document.getElementById('pjl-harga').value = entry.HargaPerGram ? Number(entry.HargaPerGram).toLocaleString('id-ID') : '';
+    document.getElementById('pjl-qty').value = entry.Qty;
+    document.getElementById('pjl-pembeli').value = entry.Pembeli;
+    document.getElementById('pjl-denominasi').value = entry.Denominasi || '1.000';
+    document.getElementById('pjl-merk').value = entry.Merk || '';
+    document.getElementById('pjl-status').value = entry.Status || 'V';
+    document.getElementById('pjl-bank').value = entry.Bank || '';
+    document.getElementById('pjl-tgl-ambil').value = entry.TanggalPengambilan ? String(entry.TanggalPengambilan).split('T')[0] : '';
+    document.getElementById('pjl-estimasi').value = entry.EstimasiPenjemputan ? String(entry.EstimasiPenjemputan).split('T')[0] : '';
+    document.getElementById('pjl-catatan').value = entry.Catatan === 'Diimpor dari spreadsheet lama' ? '' : (entry.Catatan || '');
+    updatePenjualanPreview();
+
+    const btn = document.getElementById('pjl-submit-btn');
+    btn.innerHTML = '<span class="material-symbols-rounded">save</span> Update';
+    btn.dataset.origLabel = btn.innerHTML;
+    document.getElementById('pjl-cancel-edit-btn').style.display = 'inline-flex';
+    document.getElementById('form-penjualan').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast('Mode edit — ubah data lalu klik Update', 'warning');
+  }
+
+  function cancelEditPenjualan() {
+    document.getElementById('pjl-edit-id').value = '';
+    const btn = document.getElementById('pjl-submit-btn');
+    btn.innerHTML = '<span class="material-symbols-rounded">save</span> Simpan';
+    btn.dataset.origLabel = btn.innerHTML;
+    document.getElementById('pjl-cancel-edit-btn').style.display = 'none';
+    resetForm('form-penjualan');
+  }
+
+  function submitPenjualan(evt) {
+    evt.preventDefault();
+    const editId = document.getElementById('pjl-edit-id').value;
+    const data = {
+      Tanggal: document.getElementById('pjl-tanggal').value,
+      NomorInvoice: document.getElementById('pjl-nomor-invoice').value,
+      HargaPerGram: getCurrencyValue(document.getElementById('pjl-harga')),
+      Qty: Number(document.getElementById('pjl-qty').value) || 0,
+      Pembeli: document.getElementById('pjl-pembeli').value.trim(),
+      Denominasi: document.getElementById('pjl-denominasi').value,
+      Merk: document.getElementById('pjl-merk').value,
+      Status: document.getElementById('pjl-status').value,
+      Bank: document.getElementById('pjl-bank').value,
+      TanggalPengambilan: document.getElementById('pjl-tgl-ambil').value,
+      EstimasiPenjemputan: document.getElementById('pjl-estimasi').value,
+      Catatan: document.getElementById('pjl-catatan').value
+    };
+    if (!data.NomorInvoice || !data.HargaPerGram || !data.Qty || !data.Pembeli) {
+      showToast('Lengkapi Nomor Invoice, Harga, Qty, dan Pembeli', 'warning'); return false;
+    }
+
+    const btn = document.getElementById('pjl-submit-btn');
+    setButtonLoading(btn, true);
+
+    if (editId) {
+      google.script.run
+        .withSuccessHandler(function () {
+          setButtonLoading(btn, false);
+          showToast('Penjualan berhasil diperbarui', 'success');
+          cancelEditPenjualan();
+          loadPenjualanRecent();
+          loadPenjualanHistoryTable();
+          loadDashboard();
+        })
+        .withFailureHandler(function (err) { setButtonLoading(btn, false); showToast('Gagal memperbarui: ' + (err.message || err), 'error'); })
+        .updatePenjualanTransaksi(editId, data);
+    } else {
+      google.script.run
+        .withSuccessHandler(function () {
+          setButtonLoading(btn, false);
+          showToast('Penjualan berhasil disimpan', 'success');
+          resetForm('form-penjualan');
+          loadPenjualanRecent();
+          loadPenjualanHistoryTable();
+          loadDashboard();
+        })
+        .withFailureHandler(function (err) { setButtonLoading(btn, false); showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+        .addPenjualanTransaksi(data);
+    }
+    return false;
+  }
+
+  function loadPenjualanHistoryTable() {
+    const body = document.getElementById('penjualan-history-body');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="9" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(renderPenjualanHistoryTable)
+      .withFailureHandler(handleLoadError)
+      .getPenjualanTransaksiRecent(30);
+  }
+
+  function renderSalesBuyerPageChart(list) {
+    list = list || [];
+    destroyChart('salesBuyerPage');
+    const ctx = document.getElementById('chart-sales-buyer-page');
+    if (!ctx || !list.length) return;
+    charts.salesBuyerPage = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: list.map(b => b.buyerNama), datasets: [{ label: 'Gram', data: list.map(b => b.gram), backgroundColor: cssColor('--color-primary'), borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => formatGram(v) } } } }
+    });
+  }
+
+  // ============================================================
+  // PENJUALAN — RIWAYAT (30 hari) dengan kolom Aksi Confirmation Deal
+  // ============================================================
+  function renderPenjualanHistoryTable(list) {
+    list = list || [];
+    const body = document.getElementById('penjualan-history-body');
+    if (!list.length) { body.innerHTML = '<tr><td colspan="9" class="recent-empty">Belum ada data dalam 30 hari terakhir</td></tr>'; return; }
+    body.innerHTML = list.map(function (p) {
+      return '<tr><td>' + String(p.Tanggal).split('T')[0] + '</td><td>' + p.NomorInvoice + '</td>' +
+        '<td>' + formatRupiah(p.HargaPerGram) + '</td><td>' + formatGram(p.Qty) + '</td>' +
+        '<td><b>' + formatRupiah(p.TotalHarga) + '</b></td><td>' + p.Pembeli + '</td>' +
+        '<td>' + (p.Merk || '-') + '</td>' +
+        '<td><span class="badge ' + (p.Status === 'V' ? 'green' : 'gold') + '">' + p.Status + '</span></td>' +
+        '<td><button type="button" class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="sendDealEmailConfirm(\'' + p.ID + '\', \'' + p.NomorInvoice + '\')"><span class="material-symbols-rounded" style="font-size:14px;">mail</span> Kirim Deal</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // ============================================================
+  // HALAMAN ANALYTICS — AI INSIGHT
+  // ============================================================
+  function loadAnalyticsPage() {
+    const box = document.getElementById('insight-grid');
+    box.innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada data untuk dianalisis</div>'; return; }
+        box.innerHTML = list.map(function (ins) {
+          return '<div class="card insight-card">' +
+            '<div class="insight-icon"><span class="material-symbols-rounded">' + ins.icon + '</span></div>' +
+            '<div><div class="insight-title">' + ins.title + '</div><div class="insight-text">' + ins.text + '</div></div>' +
+            '</div>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getAiInsights();
+  }
+
+  // ============================================================
+  // HALAMAN LAPORAN HARIAN
+  // ============================================================
+  function loadLaporanHarian() {
+    const dateEl = document.getElementById('lap-date-picker');
+    if (dateEl && !dateEl.value) dateEl.value = todayISO();
+    const selDate = dateEl ? dateEl.value : null;
+
+    ['lap-sumberdata-body', 'lap-piutang-body', 'lap-penetapan-body', 'lap-penjualan-body', 'lap-pembelian-body'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<tr><td colspan="5" class="recent-empty">Memuat...</td></tr>';
+    });
+    document.getElementById('lap-text-output').value = 'Memuat...';
+
+    google.script.run
+      .withSuccessHandler(renderLaporanHarian)
+      .withFailureHandler(handleLoadError)
+      .getLaporanHarianData(selDate);
+
+    google.script.run
+      .withSuccessHandler(function (text) { document.getElementById('lap-text-output').value = text; })
+      .withFailureHandler(handleLoadError)
+      .generateLaporanHarianText(selDate);
+  }
+
+  var lapTanggalLabel = '';
+  function renderLaporanHarian(data) {
+    if (!data) return;
+    lapTanggalLabel = data.tanggalLabel;
+    const printDateEl = document.getElementById('lap-print-date');
+    if (printDateEl) printDateEl.textContent = data.tanggalLabel;
+
+    document.getElementById('lap-kpi-penjualan').textContent = formatRupiah(data.penjualan.summary.totalNominal);
+    document.getElementById('lap-kpi-pembelian').textContent = formatRupiah(data.pembelian.summary.totalNominal);
+    document.getElementById('lap-kpi-cheapest').textContent = data.cheapestSupplier
+      ? data.cheapestSupplier.nama + ' (' + formatRupiah(data.cheapestSupplier.harga) + ')'
+      : '-';
+    document.getElementById('lap-kpi-margin').textContent = data.penetapanHarga.marginPercent.toFixed(2) + '%';
+
+    // --- Sumber Data ---
+    const sdBody = document.getElementById('lap-sumberdata-body');
+    if (!data.sumberData.length) {
+      sdBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada input harga hari ini</td></tr>';
+    } else {
+      sdBody.innerHTML = data.sumberData.map(function (r) {
+        const isUsd = r.nama === 'LBMA H-1' || r.nama === 'Kitco H-1';
+        const fmt = isUsd ? formatUsd : formatRupiah;
+        return '<tr><td><b>' + r.nama + '</b></td><td>' + fmt(r.harga1) + '</td><td>' + fmt(r.harga2) +
+          '</td><td>' + fmt(r.harga3) + '</td><td>' + fmt(r.harga4) + '</td></tr>';
+      }).join('');
+    }
+
+    // --- Piutang ---
+    const ptBody = document.getElementById('lap-piutang-body');
+    if (!data.piutang.rows.length) {
+      ptBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Tidak ada piutang aktif</td></tr>';
+    } else {
+      let html = data.piutang.rows.map(function (r) {
+        return '<tr><td><b>' + r.supplierNama + '</b></td><td>' + formatGram(r.gramasi) + '</td><td>' + r.gramasiPercent.toFixed(2) + '%</td>' +
+          '<td>' + formatRupiah(r.valuasi) + '</td><td>' + r.valuasiPercent.toFixed(2) + '%</td></tr>';
+      }).join('');
+      html += '<tr style="background:var(--color-gold-soft); font-weight:700;"><td>Total Piutang</td><td>' + formatGram(data.piutang.totalGramasi) +
+        '</td><td>100%</td><td>' + formatRupiah(data.piutang.totalValuasi) + '</td><td>100%</td></tr>';
+      ptBody.innerHTML = html;
+    }
+
+    // --- Penetapan Harga ---
+    const psBody = document.getElementById('lap-penetapan-body');
+    function fourCols(vals) {
+      const arr = [0, 1, 2, 3].map(i => vals[i] || 0);
+      return arr.map(v => '<td>' + (v ? formatRupiah(v) : '-') + '</td>').join('');
+    }
+    if (!data.penetapanHarga.saleVals.length && !data.penetapanHarga.buybackVals.length) {
+      psBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada penetapan harga hari ini</td></tr>';
+    } else {
+      psBody.innerHTML =
+        '<tr><td><b>Sale</b></td>' + fourCols(data.penetapanHarga.saleVals) + '</tr>' +
+        '<tr><td><b>Buyback</b></td>' + fourCols(data.penetapanHarga.buybackVals) + '</tr>';
+    }
+    document.getElementById('lap-margin-percent').textContent = data.penetapanHarga.marginPercent.toFixed(2) + '%';
+    document.getElementById('lap-profit-margin').textContent = formatRupiah(data.penetapanHarga.profitMargin);
+
+    // --- Penjualan ---
+    const pjBody = document.getElementById('lap-penjualan-body');
+    if (!data.penjualan.rows.length) {
+      pjBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada penjualan hari ini</td></tr>';
+    } else {
+      let html = data.penjualan.rows.map(function (r) {
+        return '<tr><td>' + r.NomorInvoice + '</td><td>' + formatRupiah(r.HargaPerGram) + '</td><td>' + formatGram(r.Qty) +
+          '</td><td>' + formatRupiah(r.TotalHarga) + '</td><td>' + r.Pembeli + '</td></tr>';
+      }).join('');
+      html += '<tr style="background:var(--color-gold-soft); font-weight:700;"><td>Total</td><td>-</td><td>' + formatGram(data.penjualan.summary.totalGram) +
+        '</td><td>' + formatRupiah(data.penjualan.summary.totalNominal) + '</td><td></td></tr>';
+      pjBody.innerHTML = html;
+    }
+
+    // --- Pembelian ---
+    const pbBody = document.getElementById('lap-pembelian-body');
+    if (!data.pembelian.rows.length) {
+      pbBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada pembelian hari ini</td></tr>';
+    } else {
+      let html = data.pembelian.rows.map(function (r) {
+        return '<tr><td>' + r.NomorPO + '</td><td>' + formatRupiah(r.AfterDiskon) + '</td><td>' + formatGram(r.Qty) +
+          '</td><td>' + formatRupiah(r.TotalHarga) + '</td><td>' + r.Seller + '</td></tr>';
+      }).join('');
+      html += '<tr style="background:var(--color-gold-soft); font-weight:700;"><td>Total</td><td>-</td><td>' + formatGram(data.pembelian.summary.totalGram) +
+        '</td><td>' + formatRupiah(data.pembelian.summary.totalNominal) + '</td><td></td></tr>';
+      pbBody.innerHTML = html;
+    }
+
+    // --- Isi juga versi Summary (tersembunyi, dipakai tombol Download Summary) ---
+    renderLaporanSummary(data);
+  }
+
+  function copyLaporanText() {
+    const el = document.getElementById('lap-text-output');
+    el.select();
+    el.setSelectionRange(0, 999999);
+    try {
+      document.execCommand('copy');
+      showToast('Teks laporan berhasil disalin', 'success');
+    } catch (e) {
+      showToast('Gagal menyalin — silakan copy manual dari kotak teks', 'error');
+    }
+  }
+
+  function getLaporanFileName() {
+    const label = lapTanggalLabel || todayISO();
+    return 'Update Transaksi Operasional Perdagangan Emas – ' + label;
+  }
+
+  function downloadLaporanImage() {
+    const el = document.getElementById('lap-capture-area');
+    if (!el || typeof html2canvas === 'undefined') { showToast('Gagal memuat modul export gambar', 'error'); return; }
+    showToast('Menyiapkan gambar HD...', 'success');
+    html2canvas(el, {
+      scale: 3, backgroundColor: '#ffffff', useCORS: true,
+      windowWidth: el.scrollWidth, windowHeight: el.scrollHeight
+    }).then(function (canvas) {
+      canvas.toBlob(function (blob) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = getLaporanFileName() + '.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Gambar HD berhasil diunduh', 'success');
+      }, 'image/png', 1.0);
+    }).catch(function () {
+      showToast('Gagal membuat gambar laporan', 'error');
+    });
+  }
+
+  function downloadLaporanPdf() {
+    const el = document.getElementById('lap-capture-area');
+    if (!el || typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') { showToast('Gagal memuat modul export PDF', 'error'); return; }
+    showToast('Menyiapkan PDF HD...', 'success');
+    html2canvas(el, {
+      scale: 3, backgroundColor: '#ffffff', useCORS: true,
+      windowWidth: el.scrollWidth, windowHeight: el.scrollHeight
+    }).then(function (canvas) {
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const { jsPDF } = window.jspdf;
+      const pdfWidth = 595.28; // A4 pt, portrait
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdf = new jsPDF({ orientation: pdfHeight > pdfWidth ? 'portrait' : 'landscape', unit: 'pt', format: [pdfWidth, pdfHeight], compress: false });
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+      pdf.save(getLaporanFileName() + '.pdf');
+      showToast('PDF HD berhasil diunduh', 'success');
+    }).catch(function () {
+      showToast('Gagal membuat PDF laporan', 'error');
+    });
+  }
+
+  // ============================================================
+  // LAPORAN HARIAN — DOWNLOAD SUMMARY (versi ringkas)
+  // ============================================================
+  function findSumberDataHarga(sumberData, nama) {
+    const row = (sumberData || []).find(function (r) { return r.nama === nama; });
+    if (!row) return null;
+    const vals = [row.harga1, row.harga2, row.harga3, row.harga4].filter(function (v) { return v; });
+    return vals.length ? vals[vals.length - 1] : null;
+  }
+
+  function renderLaporanSummary(data) {
+    if (!data) return;
+
+    document.getElementById('lap-sum-print-date').textContent = data.tanggalLabel;
+
+    const totalTransaksi = (data.penjualan.summary.totalNominal || 0) + (data.pembelian.summary.totalNominal || 0);
+    document.getElementById('lap-sum-penjualan').textContent = formatRupiah(data.penjualan.summary.totalNominal);
+    document.getElementById('lap-sum-pembelian').textContent = formatRupiah(data.pembelian.summary.totalNominal);
+    document.getElementById('lap-sum-total-transaksi').textContent = formatRupiah(totalTransaksi);
+    document.getElementById('lap-sum-margin').textContent = data.penetapanHarga.marginPercent.toFixed(2) + '%';
+
+    const spot = findSumberDataHarga(data.sumberData, 'Spot Goldprice');
+    const xau = findSumberDataHarga(data.sumberData, 'XAUIDRK');
+    const lbma = findSumberDataHarga(data.sumberData, 'LBMA H-1');
+    const kitco = findSumberDataHarga(data.sumberData, 'Kitco H-1');
+    document.getElementById('lap-sum-spotgold').textContent = spot != null ? formatRupiah(spot) : '-';
+    document.getElementById('lap-sum-xauidrk').textContent = xau != null ? formatRupiah(xau) : '-';
+    document.getElementById('lap-sum-lbma').textContent = lbma != null ? formatUsd(lbma) : '-';
+    document.getElementById('lap-sum-kitco').textContent = kitco != null ? formatUsd(kitco) : '-';
+
+    const psBody = document.getElementById('lap-sum-penetapan-body');
+    function fourColsSum(vals) {
+      const arr = [0, 1, 2, 3].map(function (i) { return vals[i] || 0; });
+      return arr.map(function (v) { return '<td>' + (v ? formatRupiah(v) : '-') + '</td>'; }).join('');
+    }
+    if (!data.penetapanHarga.saleVals.length && !data.penetapanHarga.buybackVals.length) {
+      psBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada penetapan harga hari ini</td></tr>';
+    } else {
+      psBody.innerHTML =
+        '<tr><td><b>Sale</b></td>' + fourColsSum(data.penetapanHarga.saleVals) + '</tr>' +
+        '<tr><td><b>Buyback</b></td>' + fourColsSum(data.penetapanHarga.buybackVals) + '</tr>';
+    }
+    document.getElementById('lap-sum-margin-percent').textContent = data.penetapanHarga.marginPercent.toFixed(2) + '%';
+    document.getElementById('lap-sum-profit-margin').textContent = formatRupiah(data.penetapanHarga.profitMargin);
+
+    document.getElementById('lap-sum-gram-penjualan').textContent = formatGram(data.penjualan.summary.totalGram);
+    document.getElementById('lap-sum-gram-pembelian').textContent = formatGram(data.pembelian.summary.totalGram);
+
+    const ptBody = document.getElementById('lap-sum-piutang-body');
+    if (!data.piutang.rows.length) {
+      ptBody.innerHTML = '<tr><td colspan="5" class="recent-empty">Tidak ada piutang aktif</td></tr>';
+    } else {
+      let html = data.piutang.rows.map(function (r) {
+        return '<tr><td><b>' + r.supplierNama + '</b></td><td>' + formatGram(r.gramasi) + '</td><td>' + r.gramasiPercent.toFixed(2) + '%</td>' +
+          '<td>' + formatRupiah(r.valuasi) + '</td><td>' + r.valuasiPercent.toFixed(2) + '%</td></tr>';
+      }).join('');
+      html += '<tr style="background:var(--color-gold-soft); font-weight:700;"><td>Total Piutang</td><td>' + formatGram(data.piutang.totalGramasi) +
+        '</td><td>100%</td><td>' + formatRupiah(data.piutang.totalValuasi) + '</td><td>100%</td></tr>';
+      ptBody.innerHTML = html;
+    }
+  }
+
+  function getLaporanSummaryFileName() {
+    const label = lapTanggalLabel || todayISO();
+    return 'Summary Transaksi Perdagangan Emas – ' + label;
+  }
+
+  function downloadLaporanSummaryImage() {
+    const el = document.getElementById('lap-summary-capture-area');
+    if (!el || typeof html2canvas === 'undefined') { showToast('Gagal memuat modul export gambar', 'error'); return; }
+    showToast('Menyiapkan gambar summary...', 'success');
+    html2canvas(el, {
+      scale: 3, backgroundColor: '#ffffff', useCORS: true,
+      windowWidth: el.scrollWidth, windowHeight: el.scrollHeight
+    }).then(function (canvas) {
+      canvas.toBlob(function (blob) {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = getLaporanSummaryFileName() + '.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Gambar summary berhasil diunduh', 'success');
+      }, 'image/png', 1.0);
+    }).catch(function () {
+      showToast('Gagal membuat gambar summary', 'error');
+    });
+  }
+
+  function downloadLaporanSummaryPdf() {
+    const el = document.getElementById('lap-summary-capture-area');
+    if (!el || typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') { showToast('Gagal memuat modul export PDF', 'error'); return; }
+    showToast('Menyiapkan PDF summary...', 'success');
+    html2canvas(el, {
+      scale: 3, backgroundColor: '#ffffff', useCORS: true,
+      windowWidth: el.scrollWidth, windowHeight: el.scrollHeight
+    }).then(function (canvas) {
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const { jsPDF } = window.jspdf;
+      const pdfWidth = 595.28;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdf = new jsPDF({ orientation: pdfHeight > pdfWidth ? 'portrait' : 'landscape', unit: 'pt', format: [pdfWidth, pdfHeight], compress: false });
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+      pdf.save(getLaporanSummaryFileName() + '.pdf');
+      showToast('PDF summary berhasil diunduh', 'success');
+    }).catch(function () {
+      showToast('Gagal membuat PDF summary', 'error');
+    });
+  }
+
+  // ============================================================
+  // LAPORAN BULANAN
+  // ============================================================
+  function getMonthPickerValue() {
+    const el = document.getElementById('mo-month-picker');
+    if (el && !el.value) {
+      const now = new Date();
+      el.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    }
+    return el ? el.value : null;
+  }
+
+  function loadLaporanBulanan() {
+    const month = getMonthPickerValue();
+
+    google.script.run.withSuccessHandler(renderMonthlySummary).withFailureHandler(handleLoadError).getMonthlySummary(month);
+    google.script.run.withSuccessHandler(renderMonthlyTrendCharts).withFailureHandler(handleLoadError).getMonthlyTrend(7);
+    google.script.run.withSuccessHandler(function (t) { document.getElementById('mo-narrative-1').innerHTML = formatNarrativeHtml(t); }).withFailureHandler(handleLoadError).generateMonthlyNarrative(month);
+    google.script.run.withSuccessHandler(function (t) { document.getElementById('mo-narrative-2').innerHTML = formatNarrativeHtml(t); }).withFailureHandler(handleLoadError).generatePenjualanNarrative(month);
+    google.script.run.withSuccessHandler(function (t) { document.getElementById('mo-narrative-3').innerHTML = formatNarrativeHtml(t); }).withFailureHandler(handleLoadError).generatePembelianNarrative(month);
+    google.script.run.withSuccessHandler(renderSupplierBreakdownChart).withFailureHandler(handleLoadError).getSupplierBreakdownMonth(month);
+    google.script.run.withSuccessHandler(renderGoldInTransitChart).withFailureHandler(handleLoadError).getPiutangSummary();
+  }
+
+  function formatNarrativeHtml(text) {
+    text = text || '';
+    let html = '';
+    text.split('\n').forEach(function (line) {
+      if (!line.trim()) return;
+      if (line === 'Insight' || line === 'Momentum Ke Depan') {
+        html += '<div class="mo-insight-title">' + line + '</div>';
+      } else {
+        html += '<p>' + line + '</p>';
+      }
+    });
+    return html;
+  }
+
+  function renderMonthlySummary(summary) {
+    if (!summary || !summary.current) return;
+    const cur = summary.current;
+    document.getElementById('mo-kpi-realisasi').textContent = formatRupiahShort(cur.realisasi);
+    document.getElementById('mo-kpi-penjualan').textContent = formatRupiahShort(cur.penjualanNominal);
+    document.getElementById('mo-kpi-pembelian').textContent = formatRupiahShort(cur.pembelianNominal);
+    document.getElementById('mo-kpi-margin').textContent = formatRupiahShort(cur.margin);
+  }
+
+  function renderMonthlyTrendCharts(trend) {
+    trend = trend || [];
+    const labels = trend.map(t => t.monthLabel);
+
+    destroyChart('moTrend');
+    const ctx1 = document.getElementById('chart-mo-trend');
+    if (ctx1) {
+      charts.moTrend = new Chart(ctx1, {
+        type: 'bar',
+        data: { labels: labels, datasets: [{ label: 'Realisasi', data: trend.map(t => t.realisasi), backgroundColor: cssColor('--color-primary'), borderRadius: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => formatRupiahShort(v) } } } }
+      });
+    }
+
+    destroyChart('moGram');
+    const ctx2 = document.getElementById('chart-mo-gram');
+    if (ctx2) {
+      charts.moGram = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Pembelian (gr)', data: trend.map(t => t.pembelianGram), backgroundColor: cssColor('--color-gold') },
+            { label: 'Penjualan (gr)', data: trend.map(t => t.penjualanGram), backgroundColor: cssColor('--color-primary') }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: v => formatGram(v) } } } }
+      });
+    }
+
+    destroyChart('moNominal');
+    const ctx3 = document.getElementById('chart-mo-nominal');
+    if (ctx3) {
+      charts.moNominal = new Chart(ctx3, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Pembelian', data: trend.map(t => t.pembelianNominal), backgroundColor: cssColor('--color-gold') },
+            { label: 'Penjualan', data: trend.map(t => t.penjualanNominal), backgroundColor: cssColor('--color-primary') }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: v => formatRupiahShort(v) } } } }
+      });
+    }
+  }
+
+  function renderSupplierBreakdownChart(data) {
+    const rows = (data && data.rows) || [];
+    destroyChart('moSupplierBar');
+    const ctx1 = document.getElementById('chart-mo-supplier-bar');
+    if (ctx1 && rows.length) {
+      charts.moSupplierBar = new Chart(ctx1, {
+        type: 'bar',
+        data: { labels: rows.map(r => r.seller), datasets: [{ label: 'Gram', data: rows.map(r => r.gram), backgroundColor: cssColor('--color-primary'), borderRadius: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => formatGram(v) } } } }
+      });
+    }
+
+    destroyChart('moSupplierDonut');
+    const ctx2 = document.getElementById('chart-mo-supplier-donut');
+    if (ctx2 && rows.length) {
+      const palette = [cssColor('--color-primary'), cssColor('--color-gold'), cssColor('--color-success'), cssColor('--color-danger'), cssColor('--color-warning'), cssColor('--color-text-muted')];
+      charts.moSupplierDonut = new Chart(ctx2, {
+        type: 'doughnut',
+        data: { labels: rows.map(r => r.seller), datasets: [{ data: rows.map(r => r.gram), backgroundColor: palette, borderWidth: 2, borderColor: cssColor('--color-surface') }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+      });
+    }
+  }
+
+  function renderGoldInTransitChart(piutang) {
+    const rows = (piutang && piutang.rows) || [];
+    destroyChart('moTransit');
+    const ctx = document.getElementById('chart-mo-transit');
+    if (ctx && rows.length) {
+      charts.moTransit = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: rows.map(r => r.supplierNama), datasets: [{ label: 'Gramasi', data: rows.map(r => r.gramasi), backgroundColor: cssColor('--color-gold'), borderRadius: 6 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: v => formatGram(v) } } } }
+      });
+    }
+  }
+
+  function downloadLaporanBulananPdf() {
+    const month = getMonthPickerValue();
+    showToast('Menyiapkan Laporan Bulanan (proses di server, mohon tunggu)...', 'success');
+
+    google.script.run
+      .withSuccessHandler(function (result) {
+        if (!result || !result.base64) { showToast('Gagal membuat Laporan Bulanan', 'error'); return; }
+        const byteChars = atob(result.base64);
+        const byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = result.fileName || ('Laporan Bulanan Perdagangan Emas – ' + month + '.pptx');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('Laporan Bulanan (PPTX) berhasil diunduh', 'success');
+
+        if (result.slidesUrl) {
+          const box = document.getElementById('mo-slides-link-box');
+          const a = document.getElementById('mo-slides-link');
+          if (box && a) {
+            a.href = result.slidesUrl;
+            box.style.display = 'flex';
+          }
+        }
+      })
+      .withFailureHandler(function (err) {
+        console.error(err);
+        showToast('Gagal membuat Laporan Bulanan: ' + (err.message || err), 'error');
+      })
+      .generateMonthlyReportSlides(month);
+  }
+
+  // ============================================================
+  // SUPPLIER PRICE TREND ANALYSIS
+  // ============================================================
+  const SPT_SUPPLIER_LIST = ['HRTA', 'IGS', 'SJL', 'IDN', 'MKB/STRGLD', 'LOTUS', 'APEPI', 'Penetapan Harga'];
+  const SPT_SUPPLIER_COLORS = { 'HRTA': '#046A38', 'IGS': '#C9A227', 'SJL': '#2563EB', 'IDN': '#DC2626', 'MKB/STRGLD': '#7C3AED', 'LOTUS': '#0D9488', 'APEPI': '#EA580C', 'Penetapan Harga': '#DB2777' };
+  let sptSelectedSuppliers = new Set(SPT_SUPPLIER_LIST);
+  let sptLastData = null;
+  let sptLegendClickTimer = null;
+
+  function initSupplierPriceChips() {
+    const box = document.getElementById('spt-supplier-checks');
+    if (!box || box.dataset.initialized) return;
+    box.dataset.initialized = '1';
+    box.innerHTML = SPT_SUPPLIER_LIST.map(function (s) {
+      const color = SPT_SUPPLIER_COLORS[s] || '#888';
+      return '<div class="spt-supplier-chip active" data-supplier="' + s + '" onclick="toggleSptSupplier(this, \'' + s + '\')">' +
+        '<span class="dot" style="background:' + color + '"></span>' + s + '</div>';
+    }).join('');
+  }
+
+  function toggleSptSupplier(el, supplier) {
+    if (sptSelectedSuppliers.has(supplier)) {
+      sptSelectedSuppliers.delete(supplier);
+      el.classList.remove('active');
+    } else {
+      sptSelectedSuppliers.add(supplier);
+      el.classList.add('active');
+    }
+    if (sptLastData) renderSupplierPriceChart(sptLastData);
+  }
+
+  function loadSupplierPriceTrend() {
+    initSupplierPriceChips();
+    const startEl = document.getElementById('spt-start-date');
+    const endEl = document.getElementById('spt-end-date');
+    if (endEl && !endEl.value) endEl.value = todayISO();
+    if (startEl && !startEl.value) {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      startEl.value = d.toISOString().slice(0, 10);
+    }
+    const start = startEl.value, end = endEl.value;
+    const freq = document.getElementById('spt-frequency').value;
+
+    google.script.run.withSuccessHandler(function (data) {
+      sptLastData = data;
+      renderSupplierPriceChart(data);
+    }).withFailureHandler(handleLoadError).getSupplierPriceTimeSeries(start, end, freq);
+
+    google.script.run.withSuccessHandler(renderSupplierPriceKpiInsight).withFailureHandler(handleLoadError).getSupplierPriceKpiAndInsights(start, end);
+  }
+
+  function renderSupplierPriceChart(data) {
+    if (!data || !data.dates || !data.dates.length) return;
+    destroyChart('supplierPriceTrend');
+    const ctx = document.getElementById('chart-supplier-price-page');
+    if (!ctx) return;
+
+    const datasets = data.supplierList
+      .filter(function (s) { return sptSelectedSuppliers.has(s); })
+      .map(function (s) {
+        const color = SPT_SUPPLIER_COLORS[s] || '#888';
+        return {
+          label: s, data: data.series[s], borderColor: color, backgroundColor: color + '22',
+          borderWidth: 2, pointRadius: 2, pointHoverRadius: 5, tension: 0.25, spanGaps: true
+        };
+      });
+
+    charts.supplierPriceTrend = new Chart(ctx, {
+      type: 'line',
+      data: { labels: data.dates, datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+        onHover: function (evt, elements, chart) {
+          chart.data.datasets.forEach(function (ds, i) {
+            ds.borderWidth = elements.length && elements[0].datasetIndex === i ? 3.5 : 2;
+          });
+        },
+        plugins: {
+          legend: {
+            position: 'top', labels: { boxWidth: 10, font: { size: 11 } },
+            onClick: function (e, legendItem, legend) {
+              const chart = legend.chart;
+              const idx = legendItem.datasetIndex;
+              if (sptLegendClickTimer) {
+                clearTimeout(sptLegendClickTimer);
+                sptLegendClickTimer = null;
+                // Double click -> isolasi hanya dataset ini.
+                chart.data.datasets.forEach(function (ds, i) { chart.setDatasetVisibility(i, i === idx); });
+                chart.update();
+              } else {
+                sptLegendClickTimer = setTimeout(function () {
+                  const meta = chart.getDatasetMeta(idx);
+                  chart.setDatasetVisibility(idx, !chart.isDatasetVisible(idx));
+                  chart.update();
+                  sptLegendClickTimer = null;
+                }, 250);
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                const supplier = ctx.dataset.label;
+                const val = ctx.parsed.y;
+                if (val == null) return supplier + ': -';
+                const dsIndex = ctx.datasetIndex;
+                const i = ctx.dataIndex;
+                const arr = ctx.chart.data.datasets[dsIndex].data;
+                let changeStr = '';
+                if (i > 0 && arr[i - 1] != null) {
+                  const diff = val - arr[i - 1];
+                  const pct = arr[i - 1] ? (diff / arr[i - 1]) * 100 : 0;
+                  changeStr = ' (' + (diff >= 0 ? '+' : '') + formatRupiah(diff) + ', ' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+                }
+                return supplier + ': ' + formatRupiah(val) + changeStr;
+              }
+            }
+          },
+          zoom: {
+            pan: { enabled: true, mode: 'x' },
+            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
+          }
+        },
+        scales: {
+          y: { ticks: { callback: v => formatRupiahShort(v) }, grid: { color: '#f0f0f0' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  function resetSupplierPriceZoom() {
+    if (charts.supplierPriceTrend) charts.supplierPriceTrend.resetZoom();
+  }
+
+  function renderSupplierPriceKpiInsight(res) {
+    if (!res) {
+      document.getElementById('spt-insight-body').innerHTML = '<div class="recent-empty">Belum ada data pada periode ini</div>';
+      return;
+    }
+    document.getElementById('spt-kpi-jumlah').textContent = res.jumlahSupplier;
+    document.getElementById('spt-kpi-terendah').textContent = res.cheapestToday ? res.cheapestToday + ' — ' + formatRupiah(res.cheapestTodayPrice) : '-';
+    document.getElementById('spt-kpi-tertinggi').textContent = res.mostExpensiveToday ? res.mostExpensiveToday + ' — ' + formatRupiah(res.mostExpensiveTodayPrice) : '-';
+    document.getElementById('spt-kpi-selisih').textContent = formatRupiah(res.selisihTerbesar);
+    document.getElementById('spt-kpi-rata').textContent = formatRupiah(res.avgAll);
+    document.getElementById('spt-kpi-spread').textContent = formatRupiah(res.avgSpread);
+
+    const items = [];
+    if (res.termurahPeriode) items.push({ icon: 'savings', title: 'Supplier Termurah Selama Periode', text: res.termurahPeriode.key + ' dengan rata-rata ' + formatRupiah(res.termurahPeriode.avg) + '/gr.' });
+    if (res.palingStabil) items.push({ icon: 'balance', title: 'Supplier Paling Stabil', text: res.palingStabil.key + ' — deviasi harga terkecil (std dev ' + formatRupiah(res.palingStabil.stddev) + ').' });
+    if (res.palingFluktuatif) items.push({ icon: 'trending_up', title: 'Supplier Paling Fluktuatif', text: res.palingFluktuatif.key + ' — deviasi harga terbesar (std dev ' + formatRupiah(res.palingFluktuatif.stddev) + ').' });
+    if (res.palingSeringTermurah) items.push({ icon: 'military_tech', title: 'Paling Sering Jadi Harga Terbaik', text: res.palingSeringTermurah.key + ' — termurah pada ' + res.palingSeringTermurah.cheapestDays + ' hari dalam periode ini.' });
+    if (res.trenNaik && res.trenNaik.length) items.push({ icon: 'arrow_upward', title: 'Supplier dengan Tren Naik', text: res.trenNaik.map(t => t.key + ' (+' + t.trendPct.toFixed(1) + '%)').join(', ') });
+    if (res.trenTurun && res.trenTurun.length) items.push({ icon: 'arrow_downward', title: 'Supplier dengan Tren Turun', text: res.trenTurun.map(t => t.key + ' (' + t.trendPct.toFixed(1) + '%)').join(', ') });
+    items.push({ icon: 'swap_horiz', title: 'Rata-rata Spread Antar Supplier', text: formatRupiah(res.avgSpread) + ' per hari (selisih harga tertinggi-terendah).' });
+
+    document.getElementById('spt-insight-body').innerHTML = items.map(function (it) {
+      return '<div class="spt-insight-item"><span class="material-symbols-rounded">' + it.icon + '</span>' +
+        '<div><div class="spt-insight-title">' + it.title + '</div><div class="spt-insight-text">' + it.text + '</div></div></div>';
+    }).join('');
+  }
+
+  function exportSupplierPricePng() {
+    if (!charts.supplierPriceTrend) { showToast('Belum ada chart untuk diexport', 'error'); return; }
+    const link = document.createElement('a');
+    link.href = charts.supplierPriceTrend.toBase64Image();
+    link.download = 'Supplier Price Trend - ' + todayISO() + '.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function exportSupplierPricePdf() {
+    const el = document.getElementById('spt-chart-card');
+    if (!el || typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') { showToast('Gagal memuat modul export PDF', 'error'); return; }
+    showToast('Menyiapkan PDF...', 'success');
+    html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(function (canvas) {
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const { jsPDF } = window.jspdf;
+      const pdfWidth = 841.89, pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [pdfWidth, pdfHeight] });
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('Supplier Price Trend - ' + todayISO() + '.pdf');
+      showToast('PDF berhasil diunduh', 'success');
+    }).catch(function () { showToast('Gagal membuat PDF', 'error'); });
+  }
+
+  function exportSupplierPriceExcel() {
+    if (!sptLastData || typeof XLSX === 'undefined') { showToast('Belum ada data untuk diexport', 'error'); return; }
+    const header = ['Tanggal'].concat(sptLastData.supplierList);
+    const rows = sptLastData.dates.map(function (d, i) {
+      return [d].concat(sptLastData.supplierList.map(function (s) { return sptLastData.series[s][i]; }));
+    });
+    const ws = XLSX.utils.aoa_to_sheet([header].concat(rows));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Supplier Price Trend');
+    XLSX.writeFile(wb, 'Supplier Price Trend - ' + todayISO() + '.xlsx');
+  }
+
+
+  // ============================================================
+  // PROFILE MITRA
+  // ============================================================
+  let mitraListData = [];
+  let mitraSortField = null;
+  let mitraSortDir = 1;
+  let mitraCurrentPage = 1;
+  const MITRA_PAGE_SIZE = 15;
+  let mitraCurrentNama = null;
+
+  function loadMitraList() {
+    document.getElementById('mitra-table-body').innerHTML = '<tr><td colspan="12" class="recent-empty">Memuat...</td></tr>';
+    google.script.run.withSuccessHandler(function (res) {
+      mitraListData = res || [];
+      mitraCurrentPage = 1;
+      populateMitraSearchDropdown();
+      renderMitraTable();
+      if (mitraListData.length) openMitraDetail(mitraListData[0].namaPerusahaan, false);
+    }).withFailureHandler(handleLoadError).getMitraList();
+  }
+
+  function populateMitraSearchDropdown() {
+    const sel = document.getElementById('mitra-search');
+    const currentVal = sel.value;
+    const names = mitraListData.map(m => m.namaPerusahaan).sort((a, b) => a.localeCompare(b));
+    sel.innerHTML = '<option value="">Semua Perusahaan</option>' +
+      names.map(n => '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>').join('');
+    sel.value = currentVal;
+  }
+
+  function sortMitraTable(field) {
+    if (mitraSortField === field) { mitraSortDir = -mitraSortDir; } else { mitraSortField = field; mitraSortDir = 1; }
+    renderMitraTable();
+  }
+
+  function renderMitraTable() {
+    const search = document.getElementById('mitra-search').value;
+    const jenisFilter = document.getElementById('mitra-filter-jenis').value;
+    const statusFilter = document.getElementById('mitra-filter-status').value;
+
+    let filtered = mitraListData.filter(function (m) {
+      if (search && m.namaPerusahaan !== search) return false;
+      if (jenisFilter && m.jenisMitra !== jenisFilter) return false;
+      if (statusFilter && m.statusAktif !== statusFilter) return false;
+      return true;
+    });
+
+    if (mitraSortField) {
+      filtered.sort(function (a, b) {
+        let va = a[mitraSortField], vb = b[mitraSortField];
+        if (va == null) va = -Infinity; if (vb == null) vb = -Infinity;
+        if (typeof va === 'string') return va.localeCompare(vb) * mitraSortDir;
+        return (va - vb) * mitraSortDir;
+      });
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / MITRA_PAGE_SIZE));
+    if (mitraCurrentPage > totalPages) mitraCurrentPage = totalPages;
+    const start = (mitraCurrentPage - 1) * MITRA_PAGE_SIZE;
+    const pageRows = filtered.slice(start, start + MITRA_PAGE_SIZE);
+
+    const body = document.getElementById('mitra-table-body');
+    if (!pageRows.length) {
+      body.innerHTML = '<tr><td colspan="12" class="recent-empty">Tidak ada mitra yang cocok dengan filter ini</td></tr>';
+    } else {
+      body.innerHTML = pageRows.map(function (m) {
+        const badgeClass = m.jenisMitra === 'Supplier' ? 'supplier' : m.jenisMitra === 'Buyer' ? 'buyer' : m.jenisMitra === 'Supplier & Buyer' ? 'both' : 'none';
+        const statusClass = m.statusAktif === 'Nonaktif' ? 'nonaktif' : 'aktif';
+        return '<tr>' +
+          '<td><b>' + m.namaPerusahaan + '</b></td>' +
+          '<td><span class="mitra-badge ' + badgeClass + '">' + m.jenisMitra + '</span></td>' +
+          '<td>' + m.kategori + '</td>' +
+          '<td><span class="mitra-badge ' + statusClass + '">' + m.statusAktif + '</span></td>' +
+          '<td>' + m.kota + '</td>' +
+          '<td>' + m.picUtama + '</td>' +
+          '<td>' + (m.totalPembelian == null ? '-' : formatRupiah(m.totalPembelian)) + '</td>' +
+          '<td>' + (m.totalPenjualan == null ? '-' : formatRupiah(m.totalPenjualan)) + '</td>' +
+          '<td>' + m.statusPKS + '</td>' +
+          '<td>' + m.sisaMasaPKS + '</td>' +
+          '<td>' + m.companyVisitTerakhir + '</td>' +
+          '<td><button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="openMitraDetail(\'' + m.namaPerusahaan.replace(/'/g, "\\'") + '\')">Lihat Detail</button></td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    const pag = document.getElementById('mitra-pagination');
+    if (!filtered.length) { pag.innerHTML = ''; return; }
+    const showStart = start + 1;
+    const showEnd = Math.min(start + MITRA_PAGE_SIZE, filtered.length);
+    let pagHtml = '<div class="mitra-pagination-info">' + showStart + '-' + showEnd + ' dari ' + filtered.length + ' data</div><div class="mitra-pagination-pages">';
+    pagHtml += '<div class="mitra-page-btn nav' + (mitraCurrentPage === 1 ? ' disabled' : '') + '" onclick="goToMitraPage(' + (mitraCurrentPage - 1) + ')">&laquo;</div>';
+    const maxBtns = 5;
+    let pStart = Math.max(1, mitraCurrentPage - 2), pEnd = Math.min(totalPages, pStart + maxBtns - 1);
+    pStart = Math.max(1, pEnd - maxBtns + 1);
+    if (pStart > 1) pagHtml += '<div class="mitra-page-btn" onclick="goToMitraPage(1)">1</div><span>...</span>';
+    for (let i = pStart; i <= pEnd; i++) {
+      pagHtml += '<div class="mitra-page-btn' + (i === mitraCurrentPage ? ' active' : '') + '" onclick="goToMitraPage(' + i + ')">' + i + '</div>';
+    }
+    if (pEnd < totalPages) pagHtml += '<span>...</span><div class="mitra-page-btn" onclick="goToMitraPage(' + totalPages + ')">' + totalPages + '</div>';
+    pagHtml += '<div class="mitra-page-btn nav' + (mitraCurrentPage === totalPages ? ' disabled' : '') + '" onclick="goToMitraPage(' + (mitraCurrentPage + 1) + ')">&raquo;</div>';
+    pagHtml += '</div>';
+    pag.innerHTML = pagHtml;
+  }
+
+  function goToMitraPage(page) { mitraCurrentPage = page; renderMitraTable(); }
+
+  function openMitraDetail(nama, scroll) {
+    mitraCurrentNama = nama;
+    document.getElementById('mitra-detail-nama').textContent = nama;
+    document.getElementById('mitra-sidebar-logo').textContent = nama.replace(/^(PT|CV|UD)\.?\s+/i, '').slice(0, 2).toUpperCase();
+    document.getElementById('mitra-detail-subtitle').innerHTML = '';
+    google.script.run.withSuccessHandler(renderMitraDetail).withFailureHandler(handleLoadError).getMitraDetail(nama);
+    showMitraTab('overview', document.querySelector('.mitra-tab'));
+    if (scroll !== false) {
+      document.getElementById('mitra-detail-view').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function showMitraTab(tabId, el) {
+    document.querySelectorAll('.mitra-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.mitra-tab-content').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+    document.getElementById('mitra-tab-' + tabId).classList.add('active');
+    if (tabId === 'pks' && mitraCurrentNama) loadMitraPKS();
+    if (tabId === 'dokumen' && mitraCurrentNama) loadMitraDocuments();
+  }
+
+  function loadMitraPKS() {
+    resetMitraPKSForm();
+    document.getElementById('mitra-pks-list').innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run.withSuccessHandler(renderMitraPKS).withFailureHandler(handleLoadError).getMitraPKSList(mitraCurrentNama);
+  }
+
+  function renderMitraPKS(list) {
+    list = list || [];
+    const REMINDER_DAYS = [90, 60, 30, 14, 7];
+
+    if (!list.length) {
+      document.getElementById('mitra-pks-info').innerHTML = '<div class="recent-empty">Belum ada data PKS</div>';
+      document.getElementById('mitra-pks-countdown-box').innerHTML = '';
+      document.getElementById('mitra-pks-reminder').innerHTML = REMINDER_DAYS.map(d => '<span class="mitra-reminder-chip">H-' + d + '</span>').join('');
+      document.getElementById('mitra-pks-list').innerHTML = '<div class="recent-empty">Belum ada riwayat PKS untuk mitra ini</div>';
+      return;
+    }
+
+    const aktif = list[0]; // sudah terurut, PKS paling relevan di posisi pertama
+    document.getElementById('mitra-pks-info').innerHTML =
+      mitraInfoRow('Nomor PKS', aktif.nomorPKS) +
+      mitraInfoRow('Nama PKS', aktif.namaPKS) +
+      mitraInfoRow('Mulai', aktif.tanggalMulai) +
+      mitraInfoRow('Berakhir', aktif.tanggalBerakhir) +
+      mitraInfoRow('Jangka Waktu', aktif.jangkaWaktuHari != null ? aktif.jangkaWaktuHari + ' hari' : '-') +
+      mitraInfoRow('Status', '<span class="mitra-badge ' + aktif.colorClass + '">' + aktif.status + '</span>');
+
+    document.getElementById('mitra-pks-countdown-box').innerHTML =
+      '<div class="mitra-pks-countdown"><div class="lbl">Sisa Masa PKS</div><div class="val">' +
+      (aktif.sisaHari != null ? aktif.sisaHari + ' hari' : '-') + '</div>' +
+      '<div class="sub">Berakhir pada ' + aktif.tanggalBerakhir + '</div></div>';
+
+    document.getElementById('mitra-pks-reminder').innerHTML = REMINDER_DAYS.map(function (d) {
+      const hit = aktif.reminderKena && aktif.reminderKena.indexOf(d) > -1;
+      return '<span class="mitra-reminder-chip' + (hit ? ' hit' : '') + '">H-' + d + '</span>';
+    }).join('');
+
+    document.getElementById('mitra-pks-list').innerHTML = list.map(function (p) {
+      return '<div class="mitra-pks-list-item">' +
+        '<div class="row"><b>' + p.namaPKS + ' (' + p.nomorPKS + ')</b><span class="mitra-badge ' + p.colorClass + '">' + p.status + '</span></div>' +
+        '<div style="font-size:12px; color:var(--color-text-muted);">' + p.tanggalMulai + ' s/d ' + p.tanggalBerakhir + ' &middot; Catatan: ' + p.catatanLegal + '</div>' +
+        '<button class="btn btn-secondary" style="margin-top:8px; padding:5px 10px; font-size:11px;" onclick=\'editMitraPKS(' + JSON.stringify(p) + ')\'>Edit</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function resetMitraPKSForm() {
+    document.getElementById('mitra-pks-form').innerHTML =
+      '<input type="hidden" id="mpks-id" value="">' +
+      '<div class="form-group"><label>Nomor PKS</label><input type="text" id="mpks-nomor"></div>' +
+      '<div class="form-group"><label>Nama PKS</label><input type="text" id="mpks-nama"></div>' +
+      '<div class="form-group"><label>Tanggal Mulai</label><input type="date" id="mpks-mulai"></div>' +
+      '<div class="form-group"><label>Tanggal Berakhir</label><input type="date" id="mpks-akhir"></div>' +
+      '<div class="form-group" style="grid-column:1/-1;"><label>Catatan Legal</label><textarea id="mpks-catatan" rows="2"></textarea></div>';
+  }
+
+  function editMitraPKS(p) {
+    resetMitraPKSForm();
+    document.getElementById('mpks-id').value = p.pksId;
+    document.getElementById('mpks-nomor').value = p.nomorPKS === '-' ? '' : p.nomorPKS;
+    document.getElementById('mpks-nama').value = p.namaPKS === '-' ? '' : p.namaPKS;
+    document.getElementById('mpks-mulai').value = p.tanggalMulai || '';
+    document.getElementById('mpks-akhir').value = p.tanggalBerakhir || '';
+    document.getElementById('mpks-catatan').value = p.catatanLegal === '-' ? '' : p.catatanLegal;
+  }
+
+  function submitMitraPKS() {
+    if (!mitraCurrentNama) return;
+    const data = {
+      pksId: document.getElementById('mpks-id').value || null,
+      namaPerusahaan: mitraCurrentNama,
+      nomorPKS: document.getElementById('mpks-nomor').value,
+      namaPKS: document.getElementById('mpks-nama').value,
+      tanggalMulai: document.getElementById('mpks-mulai').value,
+      tanggalBerakhir: document.getElementById('mpks-akhir').value,
+      catatanLegal: document.getElementById('mpks-catatan').value
+    };
+    google.script.run.withSuccessHandler(function () {
+      showToast('PKS berhasil disimpan', 'success');
+      loadMitraPKS();
+      loadMitraList();
+    }).withFailureHandler(handleLoadError).saveMitraPKS(data);
+  }
+
+  // ---------------- Dokumen PKS ----------------
+  let mitraDocEditingId = null;
+
+  function loadMitraDocuments() {
+    document.getElementById('mitra-doc-list').innerHTML = '<div class="recent-empty">Memuat...</div>';
+    google.script.run.withSuccessHandler(renderMitraDocuments).withFailureHandler(handleLoadError).getMitraDocuments(mitraCurrentNama);
+    google.script.run.withSuccessHandler(function (pksList) {
+      const sel = document.getElementById('mdoc-pks');
+      sel.innerHTML = '<option value="">- Tidak terkait PKS tertentu -</option>' +
+        (pksList || []).map(p => '<option value="' + p.pksId + '">' + p.namaPKS + ' (' + p.nomorPKS + ')</option>').join('');
+    }).withFailureHandler(handleLoadError).getMitraPKSList(mitraCurrentNama);
+  }
+
+  function docIconClass(namaDokumen) {
+    const ext = (namaDokumen || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf') return { cls: 'pdf', icon: 'picture_as_pdf' };
+    if (['jpg', 'jpeg', 'png', 'gif'].indexOf(ext) > -1) return { cls: 'image', icon: 'image' };
+    if (['doc', 'docx'].indexOf(ext) > -1) return { cls: 'doc', icon: 'description' };
+    return { cls: 'other', icon: 'insert_drive_file' };
+  }
+
+  function renderMitraDocuments(list) {
+    list = list || [];
+    const box = document.getElementById('mitra-doc-list');
+    if (!list.length) { box.innerHTML = '<div class="recent-empty">Belum ada dokumen untuk mitra ini</div>'; return; }
+
+    box.innerHTML = list.map(function (d) {
+      const iconInfo = docIconClass(d.namaDokumen);
+      const statusBadge = d.statusDokumen === 'Diarsipkan' ? 'arsip' : 'aktif';
+      let actions = '';
+      if (d.fileExists) {
+        actions += '<a class="btn btn-secondary" href="' + d.viewUrl + '" target="_blank">Preview</a>';
+        actions += '<a class="btn btn-secondary" href="' + d.viewUrl + '" target="_blank">Buka di Drive</a>';
+        actions += '<a class="btn btn-secondary" href="' + d.downloadUrl + '" target="_blank">Download</a>';
+      } else {
+        actions += '<span style="font-size:11px; color:var(--color-danger);">File tidak ditemukan di Drive</span>';
+      }
+      actions += '<button class="btn btn-secondary" onclick=\'openEditMitraDocument(' + JSON.stringify(d) + ')\'>Edit Info</button>';
+      if (d.statusDokumen !== 'Diarsipkan') {
+        actions += '<button class="btn btn-secondary" onclick="confirmArchiveDocument(\'' + d.docId + '\')">Arsipkan</button>';
+      }
+
+      return '<div class="mitra-doc-item">' +
+        '<div class="mitra-doc-icon ' + iconInfo.cls + '"><span class="material-symbols-rounded">' + iconInfo.icon + '</span></div>' +
+        '<div class="mitra-doc-info">' +
+        '<div class="mitra-doc-name">' + d.namaDokumen + ' <span class="mitra-badge ' + statusBadge + '">' + d.statusDokumen + '</span></div>' +
+        '<div class="mitra-doc-meta">' + d.jenisDokumen + ' &middot; v' + d.versi + ' &middot; Tgl Dokumen: ' + d.tanggalDokumen + ' &middot; Upload: ' + d.tanggalUpload + ' oleh ' + d.pengunggah + '</div>' +
+        (d.catatan !== '-' ? '<div class="mitra-doc-meta">Catatan: ' + d.catatan + '</div>' : '') +
+        '<div class="mitra-doc-actions">' + actions + '</div>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  function resetMitraDocForm() {
+    mitraDocEditingId = null;
+    document.getElementById('mdoc-file').value = '';
+    document.getElementById('mdoc-nama').value = '';
+    document.getElementById('mdoc-jenis').value = 'PKS Utama';
+    document.getElementById('mdoc-versi').value = '1.0';
+    document.getElementById('mdoc-tanggal').value = '';
+    document.getElementById('mdoc-catatan').value = '';
+  }
+
+  function openEditMitraDocument(d) {
+    mitraDocEditingId = d.docId;
+    document.getElementById('mdoc-nama').value = d.namaDokumen === '-' ? '' : d.namaDokumen;
+    document.getElementById('mdoc-jenis').value = d.jenisDokumen;
+    document.getElementById('mdoc-versi').value = d.versi === '-' ? '' : d.versi;
+    document.getElementById('mdoc-tanggal').value = d.tanggalDokumen === '-' ? '' : d.tanggalDokumen;
+    document.getElementById('mdoc-catatan').value = d.catatan === '-' ? '' : d.catatan;
+    showToast('Mode edit info dokumen "' + d.namaDokumen + '" — ubah field lalu klik Upload/Simpan (file tidak perlu dipilih ulang)', 'success');
+    document.getElementById('mdoc-file').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function submitMitraDocument() {
+    if (!mitraCurrentNama) return;
+    const fileInput = document.getElementById('mdoc-file');
+
+    if (mitraDocEditingId) {
+      google.script.run.withSuccessHandler(function () {
+        showToast('Info dokumen berhasil diperbarui', 'success');
+        resetMitraDocForm();
+        loadMitraDocuments();
+      }).withFailureHandler(handleLoadError).updateMitraDocumentInfo({
+        docId: mitraDocEditingId,
+        namaDokumen: document.getElementById('mdoc-nama').value,
+        jenisDokumen: document.getElementById('mdoc-jenis').value,
+        versi: document.getElementById('mdoc-versi').value,
+        tanggalDokumen: document.getElementById('mdoc-tanggal').value,
+        catatan: document.getElementById('mdoc-catatan').value
+      });
+      return;
+    }
+
+    if (!fileInput.files || !fileInput.files.length) { showToast('Pilih file terlebih dahulu', 'error'); return; }
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const base64 = e.target.result.split(',')[1];
+      showToast('Mengupload dokumen...', 'success');
+      google.script.run.withSuccessHandler(function () {
+        showToast('Dokumen berhasil diupload', 'success');
+        resetMitraDocForm();
+        loadMitraDocuments();
+      }).withFailureHandler(handleLoadError).uploadMitraDocument({
+        namaPerusahaan: mitraCurrentNama,
+        pksId: document.getElementById('mdoc-pks').value,
+        namaDokumen: document.getElementById('mdoc-nama').value || file.name,
+        jenisDokumen: document.getElementById('mdoc-jenis').value,
+        versi: document.getElementById('mdoc-versi').value,
+        tanggalDokumen: document.getElementById('mdoc-tanggal').value,
+        catatan: document.getElementById('mdoc-catatan').value,
+        fileName: file.name,
+        mimeType: file.type,
+        base64Data: base64
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function confirmArchiveDocument(docId) {
+    if (!confirm('Arsipkan dokumen ini? File tidak akan dihapus dari Drive, hanya statusnya berubah menjadi Diarsipkan.')) return;
+    google.script.run.withSuccessHandler(function () {
+      showToast('Dokumen diarsipkan', 'success');
+      loadMitraDocuments();
+    }).withFailureHandler(handleLoadError).archiveMitraDocument(docId);
+  }
+
+  function mitraInfoRow(label, value) {
+    return '<div class="mitra-info-row"><span class="label">' + label + '</span><span class="value">' + (value || '-') + '</span></div>';
+  }
+
+  function renderMitraDetail(data) {
+    if (!data) { showToast('Data mitra tidak ditemukan', 'error'); closeMitraDetail(); return; }
+
+    const badgeClass = data.jenisMitra === 'Supplier' ? 'supplier' : data.jenisMitra === 'Buyer' ? 'buyer' : data.jenisMitra === 'Supplier & Buyer' ? 'both' : 'none';
+    document.getElementById('mitra-detail-subtitle').innerHTML =
+      '<span class="mitra-badge ' + badgeClass + '">' + data.jenisMitra + '</span>' +
+      '<span class="mitra-badge ' + (data.statusAktif === 'Nonaktif' ? 'nonaktif' : 'aktif') + '">' + data.statusAktif + '</span>' +
+      (data.mitraId ? '<span style="color:var(--color-text-muted); font-size:11px;">ID: ' + data.mitraId + '</span>' : '');
+
+    document.getElementById('mitra-info-umum').innerHTML =
+      mitraInfoRow('Nama Perusahaan', data.namaPerusahaan) +
+      mitraInfoRow('Jenis Mitra', data.jenisMitra) +
+      mitraInfoRow('Kategori', data.kategori) +
+      mitraInfoRow('Status', data.statusAktif) +
+      mitraInfoRow('NPWP', data.npwp) +
+      mitraInfoRow('Kota', data.kota) +
+      mitraInfoRow('Alamat', data.alamat);
+
+    document.getElementById('mitra-info-kontak').innerHTML =
+      mitraInfoRow('PIC Utama', data.picUtama) +
+      mitraInfoRow('HP PIC', data.hpPIC) +
+      mitraInfoRow('Email PIC', data.emailPIC) +
+      mitraInfoRow('Telepon', data.phone) +
+      mitraInfoRow('Nama Bank', data.namaBank) +
+      mitraInfoRow('No Rekening', data.noRekening) +
+      mitraInfoRow('Website', data.website);
+
+    document.getElementById('mitra-info-produk').innerHTML =
+      mitraInfoRow('Jenis Produk', data.jenisProduk) +
+      mitraInfoRow('Merek Emas', data.merekEmas) +
+      mitraInfoRow('Lokasi Pabrik', data.lokasiPabrik) +
+      mitraInfoRow('Lokasi Gudang', data.lokasiGudang) +
+      mitraInfoRow('Catatan', data.catatan);
+
+    document.getElementById('mitra-edit-form').innerHTML =
+      '<div class="form-group"><label>Jenis Mitra (Override)</label><select id="mf-jenis"><option value="">Otomatis dari transaksi</option><option value="Supplier">Supplier</option><option value="Buyer">Buyer</option><option value="Supplier & Buyer">Supplier & Buyer</option></select></div>' +
+      '<div class="form-group"><label>Kategori</label><input type="text" id="mf-kategori" value="' + (data.kategori === '-' ? '' : data.kategori) + '"></div>' +
+      '<div class="form-group"><label>Status Aktif</label><select id="mf-status"><option value="Aktif">Aktif</option><option value="Nonaktif">Nonaktif</option></select></div>' +
+      '<div class="form-group"><label>Website</label><input type="text" id="mf-website" value="' + (data.website === '-' ? '' : data.website) + '"></div>' +
+      '<div class="form-group"><label>Jenis Produk</label><input type="text" id="mf-jenisproduk" value="' + (data.jenisProduk === '-' ? '' : data.jenisProduk) + '"></div>' +
+      '<div class="form-group"><label>Merek Emas</label><input type="text" id="mf-merek" value="' + (data.merekEmas === '-' ? '' : data.merekEmas) + '"></div>' +
+      '<div class="form-group"><label>Lokasi Pabrik</label><input type="text" id="mf-pabrik" value="' + (data.lokasiPabrik === '-' ? '' : data.lokasiPabrik) + '"></div>' +
+      '<div class="form-group"><label>Lokasi Gudang</label><input type="text" id="mf-gudang" value="' + (data.lokasiGudang === '-' ? '' : data.lokasiGudang) + '"></div>' +
+      '<div class="form-group" style="grid-column:1/-1;"><label>Catatan</label><textarea id="mf-catatan" rows="2">' + (data.catatan === '-' ? '' : data.catatan) + '</textarea></div>';
+    document.getElementById('mf-jenis').value = data.jenisMitra === 'Belum ada transaksi' ? '' : (['Supplier', 'Buyer', 'Supplier & Buyer'].indexOf(data.jenisMitra) > -1 ? '' : data.jenisMitra);
+    document.getElementById('mf-status').value = data.statusAktif === 'Nonaktif' ? 'Nonaktif' : 'Aktif';
+
+    // Tab Transaksi
+    const s = data.summary || {};
+    const showPembelian = data.jenisMitra === 'Supplier' || data.jenisMitra === 'Supplier & Buyer';
+    const showPenjualan = data.jenisMitra === 'Buyer' || data.jenisMitra === 'Supplier & Buyer';
+    let kpiHtml = '';
+    function kpiCard(icon, iconClass, label, val, sub) {
+      return '<div class="card mitra-kpi-icon-card">' +
+        '<div class="mitra-kpi-top"><div><div class="mini-kpi-label">' + label + '</div><div class="mitra-kpi-val">' + val + '</div></div>' +
+        '<div class="mitra-kpi-icon ' + iconClass + '"><span class="material-symbols-rounded">' + icon + '</span></div></div>' +
+        '<div class="mitra-kpi-sub">' + sub + '</div></div>';
+    }
+    if (showPembelian) {
+      kpiHtml += kpiCard('shopping_cart', 'gold', 'Total Pembelian', formatRupiah(s.pembelian.totalNominal), 'Volume ' + formatGram(s.pembelian.totalGram) + ' &middot; ' + s.pembelian.jumlahTransaksi + ' transaksi');
+    }
+    if (showPenjualan) {
+      kpiHtml += kpiCard('sell', 'purple', 'Total Penjualan', formatRupiah(s.penjualan.totalNominal), 'Volume ' + formatGram(s.penjualan.totalGram) + ' &middot; ' + s.penjualan.jumlahTransaksi + ' transaksi');
+    }
+    if (s.piutang && s.piutang.totalGramasi) {
+      kpiHtml += kpiCard('account_balance_wallet', '', 'Piutang', formatRupiah(s.piutang.totalValuasi), formatGram(s.piutang.totalGramasi) + ' outstanding');
+    }
+    document.getElementById('mitra-transaksi-kpi').innerHTML = kpiHtml || '<div class="recent-empty">Belum ada transaksi tercatat</div>';
+
+    const pjBody = document.getElementById('mitra-pembelian-body');
+    if (showPembelian && s.pembelian.rows.length) {
+      pjBody.innerHTML = s.pembelian.rows.map(r => '<tr><td>' + extractDateShort(r.Tanggal) + '</td><td>' + (r.NomorPO || '-') + '</td><td>' + formatGram(r.Qty) + '</td><td>' + formatRupiah(r.TotalHarga) + '</td></tr>').join('');
+    } else {
+      pjBody.innerHTML = '<tr><td colspan="4" class="recent-empty">-</td></tr>';
+    }
+
+    const pnBody = document.getElementById('mitra-penjualan-body');
+    if (showPenjualan && s.penjualan.rows.length) {
+      pnBody.innerHTML = s.penjualan.rows.map(r => '<tr><td>' + extractDateShort(r.Tanggal) + '</td><td>' + (r.NomorInvoice || '-') + '</td><td>' + formatGram(r.Qty) + '</td><td>' + formatRupiah(r.TotalHarga) + '</td></tr>').join('');
+    } else {
+      pnBody.innerHTML = '<tr><td colspan="4" class="recent-empty">-</td></tr>';
+    }
+  }
+
+  function extractDateShort(val) {
+    if (!val) return '-';
+    const s = String(val);
+    return s.length >= 10 ? s.slice(0, 10) : s;
+  }
+
+  function submitMitraProfile() {
+    if (!mitraCurrentNama) return;
+    const data = {
+      namaPerusahaan: mitraCurrentNama,
+      jenisMitraOverride: document.getElementById('mf-jenis').value,
+      kategori: document.getElementById('mf-kategori').value,
+      statusAktif: document.getElementById('mf-status').value,
+      website: document.getElementById('mf-website').value,
+      jenisProduk: document.getElementById('mf-jenisproduk').value,
+      merekEmas: document.getElementById('mf-merek').value,
+      lokasiPabrik: document.getElementById('mf-pabrik').value,
+      lokasiGudang: document.getElementById('mf-gudang').value,
+      catatan: document.getElementById('mf-catatan').value
+    };
+    google.script.run.withSuccessHandler(function () {
+      showToast('Profil mitra berhasil disimpan', 'success');
+      google.script.run.withSuccessHandler(renderMitraDetail).getMitraDetail(mitraCurrentNama);
+    }).withFailureHandler(handleLoadError).saveMitraProfile(data);
+  }
+
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  window.addEventListener('DOMContentLoaded', function () {
+    renderTodayDate();
+    loadCurrentUser();
+    setDefaultDates();
+    loadDashboard();
+  });
+</script>
+
+<script>
+  // ============================================================
+  // PENETAPAN HARGA (BOBOT SUPPLIER) — prinsip sama dengan Gold
+  // Studio: bobot per supplier (total 100%) -> System Reference
+  // Price (rata-rata tertimbang) -> Harga Jual = Ref x (1+Margin%).
+  // TANPA approval — submit langsung tersimpan.
+  // ============================================================
+  var phBobotList = [];
+
+  function loadPenetapanHargaPage() {
+    document.getElementById('bobot-table-body').innerHTML = '<tr><td colspan="3" class="recent-empty">Memuat...</td></tr>';
+    document.getElementById('ph-harga-table-body').innerHTML = '<tr><td colspan="3" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        phBobotList = list || [];
+        renderBobotTable(phBobotList);
+        renderPenetapanHargaInputTable(phBobotList);
+      })
+      .withFailureHandler(handleLoadError)
+      .getBobotSupplierList();
+
+    loadPenetapanHargaHistory();
+    loadMarketBenchmarkRef();
+  }
+
+  var phMarketRef = null;
+
+  function loadMarketBenchmarkRef() {
+    ['ref-spotgold', 'ref-xauidrk', 'ref-lbma', 'ref-kitco', 'ref-kursjual', 'ref-kursbeli', 'ref-rplbma', 'ref-rpkitco'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '...';
+    });
+    google.script.run
+      .withSuccessHandler(function (ref) {
+        phMarketRef = ref;
+        document.getElementById('ref-spotgold').textContent = ref && ref.spotGold != null ? formatRupiah(ref.spotGold) : '-';
+        document.getElementById('ref-xauidrk').textContent = ref && ref.xauIdr != null ? formatRupiah(ref.xauIdr) : '-';
+        document.getElementById('ref-lbma').textContent = ref && ref.lbma != null ? formatUsd(ref.lbma) : '-';
+        document.getElementById('ref-kitco').textContent = ref && ref.kitco != null ? formatUsd(ref.kitco) : '-';
+        document.getElementById('ref-kursjual').textContent = ref && ref.kursJual != null ? formatRupiah(ref.kursJual) : '-';
+        document.getElementById('ref-kursbeli').textContent = ref && ref.kursBeli != null ? formatRupiah(ref.kursBeli) : '-';
+        document.getElementById('ref-rplbma').textContent = ref && ref.rpLbma != null ? formatRupiah(ref.rpLbma) : '-';
+        document.getElementById('ref-rpkitco').textContent = ref && ref.rpKitco != null ? formatRupiah(ref.rpKitco) : '-';
+        applyMarketRefToInputTable();
+      })
+      .withFailureHandler(handleLoadError)
+      .getMarketBenchmarkLive(null);
+  }
+
+  /**
+   * Isi otomatis field Harga untuk baris indikator market (isMarket)
+   * di tabel "Input Harga & Penetapan Hari Ini", memakai nilai live
+   * yang sudah diambil loadMarketBenchmarkRef(). Aman dipanggil
+   * kapan saja — field yang belum ada di DOM otomatis dilewati.
+   */
+  function applyMarketRefToInputTable() {
+    if (!phMarketRef) return;
+    phBobotList.forEach(function (b) {
+      if (!b.isMarket || !b.marketKey) return;
+      const val = phMarketRef[b.marketKey];
+      const el = document.getElementById('ph-harga-' + b.supplierId);
+      if (el && val != null) {
+        el.value = Math.round(Number(val)).toLocaleString('id-ID');
+        calcPenetapanHarga();
+      }
+    });
+  }
+
+  function renderBobotTable(list) {
+    const body = document.getElementById('bobot-table-body');
+    if (!list.length) { body.innerHTML = '<tr><td colspan="3" class="recent-empty">Belum ada supplier</td></tr>'; return; }
+    body.innerHTML = list.map(function (b, i) {
+      const badge = b.isMarket ? ' <span class="badge gold" style="margin-left:6px;">Live</span>' : '';
+      return '<tr><td><b>' + b.nama + '</b>' + badge + '</td>' +
+        '<td><input type="number" class="date-picker-input" style="width:90px;" id="bobot-val-' + i + '" value="' + b.bobot + '" min="0" max="100" step="0.01" oninput="calcTotalBobot()"></td>' +
+        '<td><input type="checkbox" id="bobot-aktif-' + i + '" ' + (b.aktif ? 'checked' : '') + ' onchange="calcTotalBobot(); renderPenetapanHargaInputTable(phBobotList);"></td></tr>';
+    }).join('');
+    calcTotalBobot();
+  }
+
+  function calcTotalBobot() {
+    let total = 0;
+    phBobotList.forEach(function (b, i) {
+      const aktifEl = document.getElementById('bobot-aktif-' + i);
+      const valEl = document.getElementById('bobot-val-' + i);
+      if (aktifEl && aktifEl.checked && valEl) total += Number(valEl.value) || 0;
+    });
+    total = Math.round(total * 100) / 100;
+    const el = document.getElementById('ph-total-bobot');
+    if (el) {
+      el.textContent = total + '%';
+      el.style.color = Math.abs(total - 100) < 0.01 ? 'var(--color-success)' : (total > 100 ? 'var(--color-danger)' : 'var(--color-warning)');
+    }
+    return total;
+  }
+
+  function autoDistribusiBobot() {
+    const aktifIdx = [];
+    phBobotList.forEach(function (b, i) {
+      const aktifEl = document.getElementById('bobot-aktif-' + i);
+      if (aktifEl && aktifEl.checked) aktifIdx.push(i);
+    });
+    if (!aktifIdx.length) { showToast('Aktifkan minimal satu supplier dulu', 'warning'); return; }
+    const each = Math.floor((100 / aktifIdx.length) * 100) / 100;
+    const last = Math.round((100 - each * (aktifIdx.length - 1)) * 100) / 100;
+    aktifIdx.forEach(function (idx, pos) {
+      const valEl = document.getElementById('bobot-val-' + idx);
+      if (valEl) valEl.value = pos === aktifIdx.length - 1 ? last : each;
+    });
+    calcTotalBobot();
+  }
+
+  function submitBobotSupplier() {
+    const total = calcTotalBobot();
+    if (Math.abs(total - 100) > 0.01) { showToast('Total bobot supplier aktif harus 100%', 'error'); return; }
+    const data = phBobotList.map(function (b, i) {
+      const aktifEl = document.getElementById('bobot-aktif-' + i);
+      const valEl = document.getElementById('bobot-val-' + i);
+      return { supplierId: b.supplierId, bobot: Number(valEl.value) || 0, aktif: aktifEl.checked };
+    });
+    google.script.run
+      .withSuccessHandler(function () {
+        showToast('Bobot supplier berhasil disimpan', 'success');
+        loadPenetapanHargaPage();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+      .saveBobotSupplierList(data);
+  }
+
+  function renderPenetapanHargaInputTable(list) {
+    const body = document.getElementById('ph-harga-table-body');
+    const aktif = list.filter(function (b, i) {
+      const el = document.getElementById('bobot-aktif-' + i);
+      return el ? el.checked : b.aktif;
+    });
+    if (!aktif.length) { body.innerHTML = '<tr><td colspan="4" class="recent-empty">Tidak ada supplier aktif</td></tr>'; return; }
+    body.innerHTML = aktif.map(function (b) {
+      const badge = b.isMarket ? ' <span class="badge gold" style="margin-left:6px; font-size:9px;">Live</span>' : '';
+      const hargaAttrs = b.isMarket ? ' readonly title="Terisi otomatis dari harga market live"' : '';
+      const diskonAttrs = b.isMarket ? ' readonly value="0" title="Diskon tidak berlaku untuk indikator market"' : '';
+      return '<tr><td><b>' + b.nama + '</b>' + badge + '</td><td>' + b.bobot + '%</td>' +
+        '<td><input type="text" inputmode="numeric" class="date-picker-input" style="width:130px;"' + hargaAttrs + ' id="ph-harga-' + b.supplierId + '" oninput="formatCurrencyInput(this); calcPenetapanHarga();" placeholder="0"></td>' +
+        '<td><input type="text" inputmode="numeric" class="date-picker-input" style="width:110px;"' + diskonAttrs + ' id="ph-diskon-' + b.supplierId + '" oninput="formatCurrencyInput(this); calcPenetapanHarga();" placeholder="0"></td></tr>';
+    }).join('');
+    calcPenetapanHarga();
+    applyMarketRefToInputTable();
+  }
+
+  function collectPenetapanHargaItems() {
+    return phBobotList.map(function (b) {
+      const hargaEl = document.getElementById('ph-harga-' + b.supplierId);
+      const diskonEl = document.getElementById('ph-diskon-' + b.supplierId);
+      const harga = hargaEl ? getCurrencyValue(hargaEl) : 0;
+      const diskon = diskonEl ? getCurrencyValue(diskonEl) : 0;
+      const hargaBase = harga - diskon;
+      return { supplierId: b.supplierId, nama: b.nama, harga: harga, diskon: diskon, hargaBase: hargaBase, bobot: b.bobot, aktif: hargaBase > 0 };
+    });
+  }
+
+  function calcPenetapanHarga() {
+    const items = collectPenetapanHargaItems();
+    const margin = Number((document.getElementById('ph-margin') || { value: 0 }).value) || 0;
+
+    const rowsBox = document.getElementById('ph-preview-rows');
+    if (rowsBox) {
+      rowsBox.innerHTML = items.filter(function (i) { return i.harga > 0; }).map(function (i) {
+        return '<div style="display:flex; justify-content:space-between; font-size:12.5px; color:var(--color-text-muted);"><span>' + i.nama + ' (' + i.bobot + '%)</span><span>' + formatRupiah(i.hargaBase) + '</span></div>';
+      }).join('') || '<div class="recent-empty">Isi harga supplier untuk melihat kalkulasi</div>';
+    }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        document.getElementById('ph-sys-ref').textContent = formatRupiah(res.sysRefPrice);
+        document.getElementById('ph-harga-jual').textContent = formatRupiah(res.hargaJual);
+        renderBreakdownMargin(items, res.hargaJual);
+      })
+      .withFailureHandler(handleLoadError)
+      .previewPenetapanHargaBobot(items, margin);
+  }
+
+  function renderBreakdownMargin(items, hargaJual) {
+    const body = document.getElementById('ph-breakdown-body');
+    if (!body) return;
+    const isiItems = items.filter(function (i) { return i.harga > 0; });
+    if (!isiItems.length || !hargaJual) {
+      body.innerHTML = '<tr><td colspan="7" class="recent-empty">Isi harga supplier untuk melihat breakdown</td></tr>';
+      return;
+    }
+    body.innerHTML = isiItems.map(function (i) {
+      const marginRp = hargaJual - i.hargaBase;
+      const marginPct = i.hargaBase ? (marginRp / i.hargaBase) * 100 : 0;
+      const marginColor = marginRp >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+      return '<tr><td><b>' + i.nama + '</b></td><td>' + i.bobot + '%</td>' +
+        '<td>' + formatRupiah(i.harga) + '</td><td>' + formatRupiah(i.diskon) + '</td>' +
+        '<td>' + formatRupiah(i.hargaBase) + '</td>' +
+        '<td style="color:' + marginColor + '; font-weight:700;">' + formatRupiah(marginRp) + '</td>' +
+        '<td style="color:' + marginColor + '; font-weight:700;">' + marginPct.toFixed(2) + '%</td></tr>';
+    }).join('');
+  }
+
+  function submitPenetapanHarga() {
+    const items = collectPenetapanHargaItems();
+    const margin = Number((document.getElementById('ph-margin') || { value: 0 }).value) || 0;
+    const isiCount = items.filter(function (i) { return i.aktif; }).length;
+    if (!isiCount) { showToast('Isi minimal satu harga supplier', 'warning'); return; }
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        showToast('Penetapan harga tersimpan — Harga Jual ' + formatRupiah(res.hargaJual), 'success');
+        loadPenetapanHargaHistory();
+      })
+      .withFailureHandler(function (err) { showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
+      .submitPenetapanHargaBobot({ hargaSupplier: items, margin: margin });
+  }
+
+  function loadPenetapanHargaHistory() {
+    const body = document.getElementById('ph-history-body');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="6" class="recent-empty">Memuat...</td></tr>';
+    google.script.run
+      .withSuccessHandler(function (list) {
+        list = list || [];
+        if (!list.length) { body.innerHTML = '<tr><td colspan="6" class="recent-empty">Belum ada riwayat</td></tr>'; return; }
+        body.innerHTML = list.map(function (r) {
+          return '<tr><td>' + String(r.tanggal).split('T')[0] + '</td><td>' + (r.waktu ? new Date(r.waktu).toLocaleTimeString('id-ID') : '-') + '</td>' +
+            '<td>' + r.inputBy + '</td><td>' + formatRupiah(r.sysRefPrice) + '</td><td>' + r.margin.toFixed(2) + '%</td>' +
+            '<td><b>' + formatRupiah(r.hargaJual) + '</b></td></tr>';
+        }).join('');
+      })
+      .withFailureHandler(handleLoadError)
+      .getPenetapanHargaBobotRecent(30);
+  }
+</script>
