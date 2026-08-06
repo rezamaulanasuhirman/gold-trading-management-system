@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gold Trading Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <?!= include('Styles'); ?>
+</head>
+<body data-theme="light">
+
+  <div class="app-shell">
+
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo-dot">GT</div>
+        <div class="brand-text">
+          <strong>Gold Trading MS</strong>
+          <span>Divisi Bullion Pegadaian</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section-label">Menu Utama</div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" onclick="showPage('dashboard', this)">
+          <span class="material-symbols-rounded">grid_view</span> Dashboard
+        </div>
+        <div class="nav-item" onclick="showPage('laporan-harian', this)">
+          <span class="material-symbols-rounded">summarize</span> Laporan Harian
+        </div>
+        <div class="nav-item" onclick="showPage('laporan-bulanan', this)">
+          <span class="material-symbols-rounded">calendar_month</span> Laporan Bulanan
+        </div>
+        <div class="nav-item" onclick="showPage('supplier-price', this)">
+          <span class="material-symbols-rounded">storefront</span> Supplier Price
+        </div>
+        <div class="nav-item" onclick="showPage('benchmark', this)">
+          <span class="material-symbols-rounded">monitoring</span> Benchmark Market
+        </div>
+        <div class="nav-item" onclick="showPage('piutang', this)">
+          <span class="material-symbols-rounded">receipt_long</span> Piutang Supplier
+        </div>
+        <div class="nav-item" onclick="showPage('penetapan-harga', this)">
+          <span class="material-symbols-rounded">balance</span> Penetapan Harga
+        </div>
+        <div class="nav-item" onclick="showPage('profile-mitra', this)">
+          <span class="material-symbols-rounded">handshake</span> Profile Mitra
+        </div>
+        <div class="nav-item" onclick="showPage('pembelian', this)">
+          <span class="material-symbols-rounded">shopping_cart</span> Pembelian
+        </div>
+        <div class="nav-item" onclick="showPage('penjualan', this)">
+          <span class="material-symbols-rounded">sell</span> Penjualan
+        </div>
+        <div class="nav-item" onclick="showPage('invoice', this)">
+          <span class="material-symbols-rounded">request_quote</span> Invoice
+        </div>
+        <div class="nav-item" onclick="showPage('history', this)">
+          <span class="material-symbols-rounded">history</span> History
+        </div>
+        <div class="nav-item" onclick="showPage('analytics', this)">
+          <span class="material-symbols-rounded">insights</span> Analytics
+        </div>
+        <div class="nav-item" onclick="showPage('settings', this)">
+          <span class="material-symbols-rounded">settings</span> Settings
+        </div>
+      </nav>
+
+      <div class="sidebar-promo-card no-print">
+        <div class="promo-icon">🪙</div>
+        <div class="promo-title">Gold is Value,<br>Trust is Priceless</div>
+      </div>
+
+      <div class="sidebar-help-card no-print" onclick="showToast('Hubungi administrator sistem untuk bantuan.', 'success')">
+        <div class="help-icon"><span class="material-symbols-rounded">support_agent</span></div>
+        <div>
+          <div class="help-title">Butuh Bantuan?</div>
+          <div class="help-sub">Hubungi administrator sistem</div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        v1.0 &middot; Fase 3 — Frontend Shell
+      </div>
+    </aside>
+
+    <!-- ==================== MAIN ==================== -->
+    <div class="main">
+
+      <!-- ---------- TOP HEADER ---------- -->
+      <header class="topbar">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="icon-btn menu-toggle" onclick="toggleSidebar()">
+            <span class="material-symbols-rounded">menu</span>
+          </div>
+          <div class="topbar-left">
+            <div class="topbar-title">Daily Gold Trading Dashboard</div>
+            <div class="topbar-date" id="topbar-date">Memuat tanggal...</div>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="icon-btn" title="Refresh Data" onclick="refreshCurrentPage()">
+            <span class="material-symbols-rounded">refresh</span>
+          </div>
+          <div class="icon-btn" title="Export PDF" onclick="exportPdf()">
+            <span class="material-symbols-rounded">picture_as_pdf</span>
+          </div>
+          <div class="icon-btn" title="Export Excel" onclick="exportExcel()">
+            <span class="material-symbols-rounded">table_view</span>
+          </div>
+          <div class="icon-btn" title="Print Report" onclick="window.print()">
+            <span class="material-symbols-rounded">print</span>
+          </div>
+          <div class="icon-btn" title="Dark Mode" onclick="toggleTheme()">
+            <span class="material-symbols-rounded" id="theme-icon">dark_mode</span>
+          </div>
+
+          <div class="user-chip">
+            <div class="avatar" id="u-avatar">?</div>
+            <div class="u-info">
+              <div class="u-name" id="u-name">Memuat...</div>
+              <div class="u-role" id="u-role">-</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ---------- CONTENT ---------- -->
+      <main class="content">
+
+        <!-- ============ PAGE: DASHBOARD ============ -->
+        <section class="page active" id="page-dashboard">
+          <div class="page-header">
+            <h1>Dashboard</h1>
+            <p>Ringkasan keseluruhan aktivitas trading emas — update otomatis, tanpa perlu refresh halaman.</p>
+          </div>
+
+          <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="card kpi-card with-spark" id="kpi-card-sales">
+              <div class="kpi-main">
+                <div class="kpi-icon"><span class="material-symbols-rounded">sell</span></div>
+                <div class="kpi-label">Penjualan</div>
+                <div class="kpi-value" id="kpi-sales-nominal">-</div>
+                <div class="kpi-sub" id="kpi-sales-sub"></div>
+              </div>
+              <div class="kpi-sparkline-wrap"><canvas id="spark-penjualan"></canvas></div>
+            </div>
+
+            <div class="card kpi-card with-spark" id="kpi-card-pembelian">
+              <div class="kpi-main">
+                <div class="kpi-icon gold"><span class="material-symbols-rounded">shopping_cart</span></div>
+                <div class="kpi-label">Pembelian</div>
+                <div class="kpi-value" id="kpi-pembelian-nominal">-</div>
+                <div class="kpi-sub" id="kpi-pembelian-sub"></div>
+              </div>
+              <div class="kpi-sparkline-wrap"><canvas id="spark-pembelian"></canvas></div>
+            </div>
+
+            <div class="card kpi-card with-spark" id="kpi-card-margin">
+              <div class="kpi-main">
+                <div class="kpi-icon gold"><span class="material-symbols-rounded">percent</span></div>
+                <div class="kpi-label">Margin</div>
+                <div class="kpi-value" id="kpi-margin-avg">-</div>
+                <div class="kpi-sub" id="kpi-margin-sub"></div>
+              </div>
+              <div class="kpi-sparkline-wrap"><canvas id="spark-margin"></canvas></div>
+            </div>
+          </div>
+
+          <div class="card ai-summary-card" style="margin-bottom:18px;">
+            <div class="ai-summary-main">
+              <div class="ai-summary-title"><span class="material-symbols-rounded">auto_awesome</span> AI Daily Summary</div>
+              <div class="ai-summary-text" id="ai-summary-text">Memuat ringkasan...</div>
+            </div>
+            <div class="ai-summary-insight">
+              <div class="ai-summary-insight-title"><span class="material-symbols-rounded">lightbulb</span> Insight</div>
+              <div class="ai-summary-insight-text" id="ai-insight-text">Memuat insight...</div>
+            </div>
+          </div>
+
+          <div class="card chart-card" style="margin-bottom:18px;">
+            <div class="chart-card-title"><span><span class="material-symbols-rounded">show_chart</span>Benchmark Comparison — Live Gold Price (XAUIDRG)</span></div>
+            <div class="chart-canvas-wrap" style="height:280px;">
+              <iframe
+                src="https://s.tradingview.com/embed-widget/advanced-chart/?locale=id#%7B%22autosize%22%3Atrue%2C%22symbol%22%3A%22XAUIDRG%22%2C%22interval%22%3A%2260%22%2C%22timezone%22%3A%22Asia%2FJakarta%22%2C%22theme%22%3A%22light%22%2C%22style%22%3A%221%22%2C%22locale%22%3A%22id%22%2C%22toolbar_bg%22%3A%22%23f5f7f8%22%2C%22enable_publishing%22%3Afalse%2C%22hide_top_toolbar%22%3Atrue%2C%22save_image%22%3Afalse%7D"
+                style="width:100%; height:100%; border:0; border-radius:10px;"
+                allowtransparency="true" scrolling="no">
+              </iframe>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:18px; margin-bottom:20px;">
+            <!-- Piutang per Supplier -->
+            <div class="card">
+              <div class="widget-header">
+                <div class="widget-icon-badge"><span class="material-symbols-rounded">groups</span></div>
+                <div class="widget-header-text">
+                  <div class="widget-title">Piutang per Supplier</div>
+                  <div class="widget-subtitle">Total Piutang</div>
+                </div>
+                <span class="material-symbols-rounded widget-info-icon" title="Piutang aktif per supplier, live dari sheet Rekap">info</span>
+              </div>
+
+              <div class="stat-highlight-box">
+                <div class="stat-highlight-value" id="piutang-total-value">-</div>
+                <div class="stat-highlight-label">Total Piutang</div>
+              </div>
+
+              <div class="bar-list" id="piutang-bar-list"><div class="recent-empty">Memuat...</div></div>
+
+              <div class="insight-footer-box" id="piutang-insight-box">
+                <div class="insight-footer-icon"><span class="material-symbols-rounded">trending_up</span></div>
+                <div class="insight-footer-text">
+                  <div class="insight-footer-label">Supplier dengan piutang terbesar</div>
+                  <div class="insight-footer-value" id="piutang-top-name">-</div>
+                  <div class="insight-footer-sub" id="piutang-top-pct">-</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Penjualan per Buyer -->
+            <div class="card">
+              <div class="widget-header">
+                <div class="widget-icon-badge gold"><span class="material-symbols-rounded">sell</span></div>
+                <div class="widget-header-text">
+                  <div class="widget-title">Penjualan per Buyer</div>
+                  <div class="widget-subtitle">Berdasarkan Volume Penjualan</div>
+                </div>
+                <span class="material-symbols-rounded widget-info-icon" title="Top 5 buyer berdasarkan volume gramasi">info</span>
+              </div>
+
+              <div class="bar-list-table-header"><span>Buyer</span><span>Volume (gram)</span></div>
+              <div class="bar-list" id="sales-buyer-bar-list"><div class="recent-empty">Memuat...</div></div>
+
+              <div class="two-stat-row">
+                <div class="two-stat-box">
+                  <span class="material-symbols-rounded">group</span>
+                  <div><div class="two-stat-label">Total Buyer</div><div class="two-stat-value" id="sales-buyer-total-count">-</div></div>
+                </div>
+                <div class="two-stat-box">
+                  <span class="material-symbols-rounded">inventory_2</span>
+                  <div><div class="two-stat-label">Total Volume</div><div class="two-stat-value" id="sales-buyer-total-volume">-</div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top 5 Merk -->
+            <div class="card">
+              <div class="widget-header">
+                <div class="widget-icon-badge"><span class="material-symbols-rounded">emoji_events</span></div>
+                <div class="widget-header-text">
+                  <div class="widget-title">Top 5 Merk</div>
+                  <div class="widget-subtitle">Berdasarkan Nilai Penjualan</div>
+                </div>
+                <span class="material-symbols-rounded widget-info-icon" title="Top 5 merk emas berdasarkan nilai penjualan">info</span>
+              </div>
+
+              <div class="bar-list" id="top-merk-bar-list"><div class="recent-empty">Memuat...</div></div>
+
+              <div class="insight-footer-box">
+                <div class="insight-footer-icon"><span class="material-symbols-rounded">pie_chart</span></div>
+                <div class="insight-footer-text">
+                  <div class="insight-footer-label">Total Nilai Penjualan</div>
+                  <div class="insight-footer-value" id="top-merk-total-value">-</div>
+                  <div class="insight-footer-sub">dari total penjualan tercatat</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dash-grid-2">
+            <div class="card">
+              <div class="chart-card-title">
+                <span><span class="material-symbols-rounded">emoji_events</span>Top Buyer</span>
+                <span class="see-all-link" onclick="showPage('penjualan', document.querySelector('.nav-item[onclick*=penjualan]'))">Lihat Semua</span>
+              </div>
+              <div class="rank-list" id="rank-buyer-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+            <div class="card">
+              <div class="chart-card-title">
+                <span><span class="material-symbols-rounded">storefront</span>Top Supplier</span>
+                <span class="see-all-link" onclick="showPage('analytics', document.querySelector('.nav-item[onclick*=analytics]'))">Lihat Semua</span>
+              </div>
+              <div class="rank-list" id="rank-supplier-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+          </div>
+
+          <div class="dash-grid-2">
+            <div class="card chart-card">
+              <div class="chart-card-title">
+                <span><span class="material-symbols-rounded">percent</span>Margin Analysis (30 Hari)</span>
+              </div>
+              <div class="chart-canvas-wrap"><canvas id="chart-margin-trend"></canvas></div>
+            </div>
+            <div class="card chart-card">
+              <div class="chart-card-title">
+                <span><span class="material-symbols-rounded">local_shipping</span>Barang Tiba (30 Hari)</span>
+              </div>
+              <div class="chart-canvas-wrap"><canvas id="chart-price-trend"></canvas></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: LAPORAN HARIAN ============ -->
+        <section class="page" id="page-laporan-harian">
+          <div class="page-header">
+            <div class="card-title-row no-print" style="margin-bottom:0;">
+              <div>
+                <h1>Laporan Harian</h1>
+              </div>
+              <div style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap;">
+                <div>
+                  <label style="font-size:11px; color:var(--color-text-muted); display:block; margin-bottom:4px;">Tanggal</label>
+                  <input type="date" id="lap-date-picker" class="date-picker-input" onchange="loadLaporanHarian()">
+                </div>
+                <button class="btn btn-secondary" onclick="loadLaporanHarian()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+                <button class="btn btn-secondary" onclick="downloadLaporanImage()"><span class="material-symbols-rounded">image</span> Download Gambar</button>
+                <button class="btn btn-secondary" onclick="downloadLaporanPdf()"><span class="material-symbols-rounded">picture_as_pdf</span> Download PDF</button>
+                <button class="btn btn-secondary" onclick="downloadLaporanSummaryImage()"><span class="material-symbols-rounded">image</span> Gambar Summary</button>
+                <button class="btn btn-secondary" onclick="downloadLaporanSummaryPdf()"><span class="material-symbols-rounded">picture_as_pdf</span> PDF Summary</button>
+                <button class="btn btn-primary" onclick="copyLaporanText()"><span class="material-symbols-rounded">content_copy</span> Copy Teks</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="lap-capture-area" class="lap-container">
+            <div class="lap-banner">
+              <div class="lap-banner-title">Update Transaksi Perdagangan Emas</div>
+              <div class="lap-date-badge"><span class="material-symbols-rounded" style="font-size:16px;">calendar_today</span> <span id="lap-print-date">-</span></div>
+            </div>
+
+            <div class="lap-kpi-row">
+              <div class="lap-kpi-pill">
+                <div class="lap-kpi-icon green"><span class="material-symbols-rounded">sell</span></div>
+                <div><div class="lap-kpi-text-label">Penjualan</div><div class="lap-kpi-text-value" id="lap-kpi-penjualan">-</div></div>
+              </div>
+              <div class="lap-kpi-pill">
+                <div class="lap-kpi-icon green"><span class="material-symbols-rounded">shopping_cart</span></div>
+                <div><div class="lap-kpi-text-label">Pembelian</div><div class="lap-kpi-text-value" id="lap-kpi-pembelian">-</div></div>
+              </div>
+              <div class="lap-kpi-pill">
+                <div class="lap-kpi-icon gold"><span class="material-symbols-rounded">storefront</span></div>
+                <div><div class="lap-kpi-text-label">Supplier Harga Terendah</div><div class="lap-kpi-text-value" id="lap-kpi-cheapest" style="font-size:13px;">-</div></div>
+              </div>
+              <div class="lap-kpi-pill">
+                <div class="lap-kpi-icon purple"><span class="material-symbols-rounded">percent</span></div>
+                <div><div class="lap-kpi-text-label">Margin</div><div class="lap-kpi-text-value" id="lap-kpi-margin">-</div></div>
+              </div>
+            </div>
+
+            <div class="lap-section">
+              <div class="lap-section-header green"><span class="material-symbols-rounded">storefront</span> Sumber Data</div>
+              <div class="lap-section-body" style="overflow-x:auto;">
+                <table class="data-table">
+                  <thead><tr><th>Sumber Data</th><th>Harga I</th><th>Harga II</th><th>Harga III</th><th>Harga IV</th></tr></thead>
+                  <tbody id="lap-sumberdata-body"><tr><td colspan="5" class="recent-empty">Memuat...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="lap-section">
+              <div class="lap-section-header green"><span class="material-symbols-rounded">receipt_long</span> Piutang</div>
+              <div class="lap-section-body" style="overflow-x:auto;">
+                <table class="data-table">
+                  <thead><tr><th>Piutang</th><th>Gramasi</th><th>Prosentase</th><th>Valuasi</th><th>Prosentase</th></tr></thead>
+                  <tbody id="lap-piutang-body"><tr><td colspan="5" class="recent-empty">Memuat...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="lap-section">
+              <div class="lap-section-header green"><span class="material-symbols-rounded">percent</span> Penetapan Harga</div>
+              <div class="lap-section-body" style="overflow-x:auto;">
+                <table class="data-table">
+                  <thead><tr><th></th><th>Harga I</th><th>Harga II</th><th>Harga III</th><th>Harga IV</th></tr></thead>
+                  <tbody id="lap-penetapan-body"><tr><td colspan="5" class="recent-empty">Memuat...</td></tr></tbody>
+                </table>
+              </div>
+              <div class="mini-kpi-grid" style="grid-template-columns: repeat(2, 1fr); margin:0 14px 14px; width:auto;">
+                <div class="card mini-kpi"><div class="mini-kpi-label">Margin Rata-rata</div><div class="mini-kpi-value" id="lap-margin-percent">-</div></div>
+                <div class="card mini-kpi" style="background:var(--color-gold-soft);"><div class="mini-kpi-label">Profit Margin</div><div class="mini-kpi-value" id="lap-profit-margin">-</div></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="lap-section">
+                <div class="lap-section-header green"><span class="material-symbols-rounded">sell</span> Penjualan</div>
+                <div class="lap-section-body" style="overflow-x:auto;">
+                  <table class="data-table">
+                    <thead><tr><th>No Invoice</th><th>Harga</th><th>Gram</th><th>Nominal</th><th>Perusahaan</th></tr></thead>
+                    <tbody id="lap-penjualan-body"><tr><td colspan="5" class="recent-empty">Memuat...</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="lap-section">
+                <div class="lap-section-header gold"><span class="material-symbols-rounded">shopping_cart</span> Pembelian</div>
+                <div class="lap-section-body" style="overflow-x:auto;">
+                  <table class="data-table">
+                    <thead><tr><th>No PO</th><th>Harga</th><th>Gram</th><th>Nominal</th><th>Perusahaan</th></tr></thead>
+                    <tbody id="lap-pembelian-body"><tr><td colspan="5" class="recent-empty">Memuat...</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== AREA TERSEMBUNYI KHUSUS DOWNLOAD SUMMARY (tidak tampil di layar, hanya untuk capture gambar/PDF) ===== -->
+          <div id="lap-summary-capture-area" style="position:absolute; left:-9999px; top:0;">
+            <div class="lap-container">
+              <div class="lap-banner">
+                <div class="lap-banner-title">Summary Transaksi Perdagangan Emas</div>
+                <div class="lap-date-badge"><span class="material-symbols-rounded" style="font-size:16px;">calendar_today</span> <span id="lap-sum-print-date">-</span></div>
+              </div>
+
+              <div class="lap-kpi-row">
+                <div class="lap-kpi-pill">
+                  <div class="lap-kpi-icon green"><span class="material-symbols-rounded">sell</span></div>
+                  <div><div class="lap-kpi-text-label">Penjualan</div><div class="lap-kpi-text-value" id="lap-sum-penjualan">-</div></div>
+                </div>
+                <div class="lap-kpi-pill">
+                  <div class="lap-kpi-icon green"><span class="material-symbols-rounded">shopping_cart</span></div>
+                  <div><div class="lap-kpi-text-label">Pembelian</div><div class="lap-kpi-text-value" id="lap-sum-pembelian">-</div></div>
+                </div>
+                <div class="lap-kpi-pill">
+                  <div class="lap-kpi-icon gold"><span class="material-symbols-rounded">account_balance_wallet</span></div>
+                  <div><div class="lap-kpi-text-label">Total Transaksi</div><div class="lap-kpi-text-value" id="lap-sum-total-transaksi">-</div></div>
+                </div>
+                <div class="lap-kpi-pill">
+                  <div class="lap-kpi-icon purple"><span class="material-symbols-rounded">percent</span></div>
+                  <div><div class="lap-kpi-text-label">Margin</div><div class="lap-kpi-text-value" id="lap-sum-margin">-</div></div>
+                </div>
+              </div>
+
+              <div class="lap-section">
+                <div class="lap-section-header green"><span class="material-symbols-rounded">monitoring</span> Harga Market</div>
+                <div class="lap-section-body" style="overflow-x:auto;">
+                  <table class="data-table">
+                    <thead><tr><th>Spot Goldprice</th><th>XAUIDRK</th><th>LBMA</th><th>Kitco</th></tr></thead>
+                    <tbody>
+                      <tr>
+                        <td id="lap-sum-spotgold">-</td>
+                        <td id="lap-sum-xauidrk">-</td>
+                        <td id="lap-sum-lbma">-</td>
+                        <td id="lap-sum-kitco">-</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="lap-section">
+                <div class="lap-section-header green"><span class="material-symbols-rounded">percent</span> Penetapan Harga & Profit</div>
+                <div class="lap-section-body" style="overflow-x:auto;">
+                  <table class="data-table">
+                    <thead><tr><th></th><th>Harga I</th><th>Harga II</th><th>Harga III</th><th>Harga IV</th></tr></thead>
+                    <tbody id="lap-sum-penetapan-body"><tr><td colspan="5" class="recent-empty">-</td></tr></tbody>
+                  </table>
+                </div>
+                <div class="mini-kpi-grid" style="grid-template-columns: repeat(2, 1fr); margin:0 14px 14px; width:auto;">
+                  <div class="card mini-kpi"><div class="mini-kpi-label">Margin Rata-rata</div><div class="mini-kpi-value" id="lap-sum-margin-percent">-</div></div>
+                  <div class="card mini-kpi" style="background:var(--color-gold-soft);"><div class="mini-kpi-label">Profit Margin</div><div class="mini-kpi-value" id="lap-sum-profit-margin">-</div></div>
+                </div>
+              </div>
+
+              <div class="lap-section">
+                <div class="lap-section-header gold"><span class="material-symbols-rounded">scale</span> Gramasi Transaksi</div>
+                <div class="mini-kpi-grid" style="grid-template-columns: repeat(2, 1fr); margin:14px;">
+                  <div class="card mini-kpi"><div class="mini-kpi-label">Gramasi Penjualan</div><div class="mini-kpi-value" id="lap-sum-gram-penjualan">-</div></div>
+                  <div class="card mini-kpi"><div class="mini-kpi-label">Gramasi Pembelian</div><div class="mini-kpi-value" id="lap-sum-gram-pembelian">-</div></div>
+                </div>
+              </div>
+
+              <div class="lap-section">
+                <div class="lap-section-header green"><span class="material-symbols-rounded">receipt_long</span> Piutang</div>
+                <div class="lap-section-body" style="overflow-x:auto;">
+                  <table class="data-table">
+                    <thead><tr><th>Piutang</th><th>Gramasi</th><th>Prosentase</th><th>Valuasi</th><th>Prosentase</th></tr></thead>
+                    <tbody id="lap-sum-piutang-body"><tr><td colspan="5" class="recent-empty">-</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ===== AKHIR AREA SUMMARY ===== -->
+
+          <div class="card no-print" style="margin-top:18px;">
+            <div class="form-section-title"><span class="material-symbols-rounded">chat</span> Teks Siap Share</div>
+            <textarea id="lap-text-output" readonly style="width:100%; min-height:220px; font-family:monospace; font-size:12px; padding:12px; border-radius:10px; border:1px solid var(--color-border); background:var(--color-bg); color:var(--color-text);">Memuat...</textarea>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: LAPORAN BULANAN ============ -->
+        <section class="page" id="page-laporan-bulanan">
+          <div class="page-header">
+            <div class="card-title-row no-print" style="margin-bottom:0;">
+              <div><h1>Laporan Bulanan</h1></div>
+              <div style="display:flex; align-items:flex-end; gap:8px;">
+                <div>
+                  <label style="font-size:11px; color:var(--color-text-muted); display:block; margin-bottom:4px;">Bulan</label>
+                  <input type="month" id="mo-month-picker" class="date-picker-input" onchange="loadLaporanBulanan()">
+                </div>
+                <button class="btn btn-secondary" onclick="loadLaporanBulanan()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+                <button class="btn btn-primary" onclick="downloadLaporanBulananPdf()"><span class="material-symbols-rounded">slideshow</span> Download Laporan Bulanan (PPTX)</button>
+              </div>
+            </div>
+            <div id="mo-slides-link-box" class="no-print" style="display:none; align-items:center; gap:8px; margin-top:10px; background:var(--color-primary-soft); border-radius:10px; padding:10px 14px;">
+              <span class="material-symbols-rounded" style="color:var(--color-primary);">link</span>
+              <span style="font-size:12.5px;">Laporan juga tersimpan sebagai Google Slides yang bisa diedit:</span>
+              <a id="mo-slides-link" href="#" target="_blank" style="font-size:12.5px; font-weight:700; color:var(--color-primary);">Buka di Google Slides &rarr;</a>
+            </div>
+          </div>
+
+          <div id="mo-capture-area">
+            <!-- ===== HALAMAN 1: Kinerja Perdagangan Emas ===== -->
+            <div class="mo-page" id="mo-page-1">
+              <div class="mo-page-header">
+                <div class="mo-logo"><div class="mo-logo-dot">GT</div><div class="mo-logo-text">Gold Trading MS</div></div>
+                <div class="mo-page-title">Kinerja Perdagangan Emas</div>
+              </div>
+
+              <div class="mo-kpi-grid">
+                <div class="card mini-kpi"><div class="mini-kpi-label">Realisasi</div><div class="mini-kpi-value" id="mo-kpi-realisasi" style="font-size:15px;">-</div></div>
+                <div class="card mini-kpi"><div class="mini-kpi-label">Penjualan</div><div class="mini-kpi-value" id="mo-kpi-penjualan" style="font-size:15px;">-</div></div>
+                <div class="card mini-kpi"><div class="mini-kpi-label">Pembelian</div><div class="mini-kpi-value" id="mo-kpi-pembelian" style="font-size:15px;">-</div></div>
+                <div class="card mini-kpi"><div class="mini-kpi-label">Margin</div><div class="mini-kpi-value" id="mo-kpi-margin" style="font-size:15px;">-</div></div>
+              </div>
+
+              <div class="mo-chart-box"><canvas id="chart-mo-trend"></canvas></div>
+              <div class="mo-narrative" id="mo-narrative-1">Memuat narasi...</div>
+
+              <div class="mo-page-footer">
+                <span>Confidential and Proprietary</span>
+                <span>1</span>
+              </div>
+            </div>
+
+            <!-- ===== HALAMAN 2: Tren Transaksi — Penjualan ===== -->
+            <div class="mo-page" id="mo-page-2">
+              <div class="mo-page-header">
+                <div class="mo-logo"><div class="mo-logo-dot">GT</div><div class="mo-logo-text">Gold Trading MS</div></div>
+                <div class="mo-page-title">Tren Transaksi Perdagangan</div>
+              </div>
+              <div class="form-section-title" style="margin-bottom:14px;">Buyer Perdagangan (Transaksi Penjualan)</div>
+
+              <div class="mo-chart-box"><canvas id="chart-mo-gram"></canvas></div>
+              <div class="mo-chart-box" style="margin-top:24px;"><canvas id="chart-mo-nominal"></canvas></div>
+              <div class="mo-narrative" id="mo-narrative-2" style="margin-top:14px;">Memuat narasi...</div>
+
+              <div class="mo-page-footer">
+                <span>Confidential and Proprietary</span>
+                <span>2</span>
+              </div>
+            </div>
+
+            <!-- ===== HALAMAN 3: Tren Transaksi — Supplier & Gold in Transit ===== -->
+            <div class="mo-page" id="mo-page-3">
+              <div class="mo-page-header">
+                <div class="mo-logo"><div class="mo-logo-dot">GT</div><div class="mo-logo-text">Gold Trading MS</div></div>
+                <div class="mo-page-title">Tren Transaksi Perdagangan</div>
+              </div>
+              <div class="form-section-title" style="margin-bottom:14px;">Supplier Perdagangan (Transaksi Pembelian)</div>
+
+              <div style="display:flex; gap:20px; align-items:center;">
+                <div class="mo-chart-box" style="flex:1;"><canvas id="chart-mo-supplier-bar"></canvas></div>
+                <div class="donut-wrap" style="width:150px; height:150px;"><canvas id="chart-mo-supplier-donut"></canvas></div>
+              </div>
+              <div class="mo-narrative" id="mo-narrative-3" style="margin-top:10px;">Memuat narasi...</div>
+
+              <div class="form-section-title" style="margin:18px 0 6px 0;">Gold in Transit Supplier</div>
+              <div class="mo-chart-box"><canvas id="chart-mo-transit"></canvas></div>
+
+              <div class="mo-page-footer">
+                <span>Confidential and Proprietary</span>
+                <span>3</span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="page" id="page-daily-trading">
+          <div class="page-header"><h1>Daily Trading</h1><p>Input harga supplier, benchmark market, dan penetapan harga harian.</p></div>
+
+          <div class="grid-2col">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">storefront</span> Input Harga Supplier</div>
+              <form id="form-supplier-price" onsubmit="return submitSupplierPrice(event)">
+                <input type="hidden" id="sp-edit-id" value="">
+                <div class="form-grid">
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="sp-tanggal" required></div>
+                  <div class="form-group"><label>Supplier</label><select id="sp-supplier" required><option value="">Pilih supplier</option></select></div>
+                  <div class="form-group"><label>Harga 1 (Rp/gr)</label><input type="text" inputmode="numeric" id="sp-harga1" oninput="formatCurrencyInput(this)" placeholder="0"></div>
+                  <div class="form-group"><label>Harga 2 (Rp/gr)</label><input type="text" inputmode="numeric" id="sp-harga2" oninput="formatCurrencyInput(this)" placeholder="0"></div>
+                  <div class="form-group"><label>Harga 3 (Rp/gr)</label><input type="text" inputmode="numeric" id="sp-harga3" oninput="formatCurrencyInput(this)" placeholder="0"></div>
+                  <div class="form-group"><label>Harga 4 (Rp/gr)</label><input type="text" inputmode="numeric" id="sp-harga4" oninput="formatCurrencyInput(this)" placeholder="0"></div>
+                  <div class="form-group span-2"><label>Catatan</label><textarea id="sp-catatan" placeholder="Opsional"></textarea></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="sp-submit-btn"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-supplier-price')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                  <button type="button" class="btn btn-secondary" id="sp-cancel-edit-btn" style="display:none;" onclick="cancelEditSupplierPrice()"><span class="material-symbols-rounded">close</span> Batal Edit</button>
+                </div>
+                <div class="form-hint" style="margin-top:8px;">Harga rata-rata &amp; supplier termurah dihitung otomatis setelah disimpan.</div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">history</span> Input Harga Hari Ini</div>
+              <div class="recent-list" id="sp-recent-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+          </div>
+
+          <div class="grid-2col" style="margin-top:18px;">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">monitoring</span> Input Benchmark Market</div>
+              <form id="form-benchmark" onsubmit="return submitBenchmark(event)">
+                <div class="form-grid">
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="bm-tanggal" required></div>
+                  <div class="form-group"><label>Spot Gold (Rp)</label><input type="text" inputmode="numeric" id="bm-spotgold" oninput="formatCurrencyInput(this)" placeholder="0"></div>
+                  <div class="form-group"><label>XAUIDRK (Rp)</label><input type="text" inputmode="numeric" id="bm-xauidrk" oninput="formatCurrencyInput(this)" placeholder="0"></div>
+                  <div class="form-group"><label>LBMA (USD)</label><input type="number" step="0.01" min="0" id="bm-lbma" placeholder="0.00"></div>
+                  <div class="form-group"><label>Kitco (USD)</label><input type="number" step="0.01" min="0" id="bm-kitco" placeholder="0.00"></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-benchmark')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">percent</span> Penetapan Harga</div>
+              <form id="form-price-setting" onsubmit="return submitPriceSetting(event)">
+                <div class="form-grid">
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="ps-tanggal" required></div>
+                  <div class="form-group"><label>Tanggal Berlaku</label><input type="date" id="ps-berlaku" required></div>
+                  <div class="form-group"><label>Harga Sale</label><input type="text" inputmode="numeric" id="ps-sale" oninput="formatCurrencyInput(this); updateMarginPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>Harga Buyback</label><input type="text" inputmode="numeric" id="ps-buyback" oninput="formatCurrencyInput(this); updateMarginPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>Margin (Otomatis)</label><div class="form-computed" id="ps-margin-preview">Rp0</div></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-price-setting')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: SUPPLIER PRICE (Analisis) ============ -->
+        <section class="page" id="page-supplier-price">
+          <div class="page-header">
+            <h1>Supplier Price Trend Analysis</h1>
+            <p>Perbandingan pergerakan harga time-series seluruh supplier — tren, kompetitivitas, dan volatilitas harga.</p>
+          </div>
+
+          <div class="card" style="margin-bottom:18px;">
+            <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
+              <div>
+                <label class="spt-filter-label">Tanggal Awal</label>
+                <input type="date" id="spt-start-date" class="date-picker-input">
+              </div>
+              <div>
+                <label class="spt-filter-label">Tanggal Akhir</label>
+                <input type="date" id="spt-end-date" class="date-picker-input">
+              </div>
+              <div>
+                <label class="spt-filter-label">Frekuensi</label>
+                <select id="spt-frequency" class="date-picker-input">
+                  <option value="daily">Harian</option>
+                  <option value="weekly">Mingguan</option>
+                  <option value="monthly">Bulanan</option>
+                </select>
+              </div>
+              <div style="flex:1; min-width:220px;">
+                <label class="spt-filter-label">Supplier</label>
+                <div id="spt-supplier-checks" class="spt-supplier-checks"></div>
+              </div>
+              <button class="btn btn-primary" onclick="loadSupplierPriceTrend()"><span class="material-symbols-rounded">filter_alt</span> Terapkan</button>
+            </div>
+          </div>
+
+          <div id="spt-kpi-row" class="spt-kpi-row">
+            <div class="card spt-kpi-card"><div class="spt-kpi-label">Jumlah Supplier</div><div class="spt-kpi-value" id="spt-kpi-jumlah">-</div></div>
+            <div class="card spt-kpi-card"><div class="spt-kpi-label">Harga Terendah Hari Ini</div><div class="spt-kpi-value" id="spt-kpi-terendah">-</div></div>
+            <div class="card spt-kpi-card"><div class="spt-kpi-label">Harga Tertinggi Hari Ini</div><div class="spt-kpi-value" id="spt-kpi-tertinggi">-</div></div>
+            <div class="card spt-kpi-card"><div class="spt-kpi-label">Selisih Harga Terbesar</div><div class="spt-kpi-value" id="spt-kpi-selisih">-</div></div>
+            <div class="card spt-kpi-card"><div class="spt-kpi-label">Rata-rata Harga</div><div class="spt-kpi-value" id="spt-kpi-rata">-</div></div>
+            <div class="card spt-kpi-card"><div class="spt-kpi-label">Market Spread</div><div class="spt-kpi-value" id="spt-kpi-spread">-</div></div>
+          </div>
+
+          <div class="card chart-card" id="spt-chart-card" style="margin-bottom:18px;">
+            <div class="card-title-row">
+              <div class="chart-card-title" style="margin:0;"><span><span class="material-symbols-rounded">show_chart</span>Pergerakan Harga Supplier</span></div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-secondary" onclick="resetSupplierPriceZoom()"><span class="material-symbols-rounded">restart_alt</span> Reset Zoom</button>
+                <button class="btn btn-secondary" onclick="exportSupplierPricePng()"><span class="material-symbols-rounded">image</span> PNG</button>
+                <button class="btn btn-secondary" onclick="exportSupplierPricePdf()"><span class="material-symbols-rounded">picture_as_pdf</span> PDF</button>
+                <button class="btn btn-secondary" onclick="exportSupplierPriceExcel()"><span class="material-symbols-rounded">table_view</span> Excel</button>
+              </div>
+            </div>
+            <div class="spt-chart-hint">Scroll untuk zoom, drag untuk geser (pan). Klik nama supplier di legend untuk sembunyikan/tampilkan, double-click untuk isolasi satu supplier.</div>
+            <div class="chart-canvas-wrap" style="height:420px;"><canvas id="chart-supplier-price-page"></canvas></div>
+          </div>
+
+          <div class="card" id="spt-insight-card">
+            <div class="form-section-title"><span class="material-symbols-rounded">lightbulb</span> Analytics &amp; Insight</div>
+            <div id="spt-insight-body" class="spt-insight-grid"><div class="recent-empty">Memuat...</div></div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: BENCHMARK MARKET (Analisis) ============ -->
+        <section class="page" id="page-benchmark">
+          <div class="page-header"><h1>Benchmark Market</h1><p>Spot Gold, LBMA, Kitco, XAUIDRK.</p></div>
+
+          <div class="mini-kpi-grid">
+            <div class="card mini-kpi"><div class="mini-kpi-label">Spot Gold</div><div class="mini-kpi-value" id="mini-spotgold">-</div></div>
+            <div class="card mini-kpi"><div class="mini-kpi-label">LBMA</div><div class="mini-kpi-value" id="mini-lbma">-</div></div>
+            <div class="card mini-kpi"><div class="mini-kpi-label">XAUIDRK</div><div class="mini-kpi-value" id="mini-xauidrk">-</div></div>
+            <div class="card mini-kpi"><div class="mini-kpi-label">Kitco</div><div class="mini-kpi-value" id="mini-kitco">-</div></div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="chart-card-title">
+              <span><span class="material-symbols-rounded">show_chart</span>Trend Benchmark Market</span>
+              <div class="trend-tabs">
+                <div class="trend-tab active" data-days="7" onclick="switchBenchmarkTrend(7, this)">7H</div>
+                <div class="trend-tab" data-days="30" onclick="switchBenchmarkTrend(30, this)">30H</div>
+                <div class="trend-tab" data-days="90" onclick="switchBenchmarkTrend(90, this)">90H</div>
+              </div>
+            </div>
+            <div class="chart-canvas-wrap"><canvas id="chart-benchmark-trend"></canvas></div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: PIUTANG SUPPLIER ============ -->
+        <section class="page" id="page-piutang">
+          <div class="page-header"><h1>Piutang Supplier</h1><p>Outstanding piutang per supplier.</p></div>
+
+          <div class="grid-2col">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">receipt_long</span> Input Piutang</div>
+              <form id="form-outstanding" onsubmit="return submitOutstanding(event)">
+                <div class="form-grid">
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="ot-tanggal" required></div>
+                  <div class="form-group"><label>Supplier</label><select id="ot-supplier" required><option value="">Pilih supplier</option></select></div>
+                  <div class="form-group"><label>Gramasi</label><input type="number" step="0.01" id="ot-gramasi" oninput="updateValuasiPreview()" placeholder="0"></div>
+                  <div class="form-group"><label>Harga Dasar (Rp/gr)</label><input type="text" inputmode="numeric" id="ot-harga" oninput="formatCurrencyInput(this); updateValuasiPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>Valuasi (Otomatis)</label><div class="form-computed" id="ot-valuasi-preview">Rp0</div></div>
+                  <div class="form-group"><label>Status</label>
+                    <select id="ot-status"><option value="Outstanding">Outstanding</option><option value="Lunas">Lunas</option></select>
+                  </div>
+                  <div class="form-group span-2"><label>Keterangan</label><textarea id="ot-keterangan" placeholder="Opsional"></textarea></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-outstanding')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">list_alt</span> Outstanding Aktif</div>
+              <div class="recent-list" id="ot-recent-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: PENETAPAN HARGA (BOBOT SUPPLIER) ============ -->
+        <section class="page" id="page-penetapan-harga">
+          <div class="page-header"><h1>Penetapan Harga</h1><p>Harga jual dihitung otomatis dari rata-rata tertimbang (bobot) harga supplier — langsung tersimpan tanpa approval.</p></div>
+
+          <div class="card" style="margin-bottom:18px;">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">monitoring</span> Referensi Market (Live)</div>
+              <button class="btn-secondary" onclick="loadMarketBenchmarkRef()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+            </div>
+            <div class="form-hint" style="margin-bottom:10px;">Live dari Price Discovery V3 — hanya referensi pembanding, tidak ikut dihitung di rata-rata tertimbang.</div>
+            <div class="mini-kpi-grid" style="grid-template-columns: repeat(4, 1fr);" id="ref-market-grid">
+              <div class="card mini-kpi"><div class="mini-kpi-label">Spot Goldprice</div><div class="mini-kpi-value" id="ref-spotgold">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">XAUIDRK</div><div class="mini-kpi-value" id="ref-xauidrk">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">LBMA H-1</div><div class="mini-kpi-value" id="ref-lbma">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">Kitco H-1</div><div class="mini-kpi-value" id="ref-kitco">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">Kurs Jual</div><div class="mini-kpi-value" id="ref-kursjual">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">Kurs Beli</div><div class="mini-kpi-value" id="ref-kursbeli">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">Rp LBMA</div><div class="mini-kpi-value" id="ref-rplbma">-</div></div>
+              <div class="card mini-kpi"><div class="mini-kpi-label">Rp Kitco</div><div class="mini-kpi-value" id="ref-rpkitco">-</div></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:18px;">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">tune</span> Konfigurasi Bobot Supplier</div>
+              <button class="btn-secondary" onclick="autoDistribusiBobot()"><span class="material-symbols-rounded">balance</span> Rata Merata</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Supplier</th><th>Bobot (%)</th><th>Aktif</th></tr></thead>
+                <tbody id="bobot-table-body"><tr><td colspan="3" class="recent-empty">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+            <div class="total-bar-ph" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; font-size:13px; font-weight:700;">
+              <span>Total Bobot Aktif</span>
+              <span id="ph-total-bobot">0%</span>
+            </div>
+            <div style="padding:0 14px 14px;">
+              <button class="btn-primary" onclick="submitBobotSupplier()"><span class="material-symbols-rounded">save</span> Simpan Bobot</button>
+            </div>
+          </div>
+
+          <div class="grid-2col">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">payments</span> Input Harga & Penetapan Hari Ini</div>
+              <div style="overflow-x:auto;">
+                <table class="data-table">
+                  <thead><tr><th>Supplier</th><th>Bobot</th><th>Harga (Rp/gr)</th><th>Diskon (Rp/gr)</th></tr></thead>
+                  <tbody id="ph-harga-table-body"><tr><td colspan="4" class="recent-empty">Memuat...</td></tr></tbody>
+                </table>
+              </div>
+              <div class="form-grid" style="padding:14px;">
+                <div class="form-group"><label>Margin (%)</label><input type="number" id="ph-margin" step="0.01" min="0" placeholder="0" oninput="calcPenetapanHarga()"></div>
+              </div>
+              <div class="form-actions">
+                <button class="btn-primary" onclick="submitPenetapanHarga()"><span class="material-symbols-rounded">check_circle</span> Simpan Penetapan Harga</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">calculate</span> Kalkulasi Real-time</div>
+              <div id="ph-preview-rows" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;"></div>
+              <div class="mini-kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="card mini-kpi"><div class="mini-kpi-label">System Reference Price</div><div class="mini-kpi-value" id="ph-sys-ref">Rp0</div></div>
+                <div class="card mini-kpi" style="background:var(--color-gold-soft);"><div class="mini-kpi-label">Harga Jual</div><div class="mini-kpi-value" id="ph-harga-jual">Rp0</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:18px;">
+            <div class="form-section-title"><span class="material-symbols-rounded">table_rows</span> Breakdown Margin per Supplier</div>
+            <div class="form-hint" style="margin-bottom:10px;">Harga Base = Harga Supplier &minus; Diskon. Margin dihitung dari selisih Harga Jual terhadap Harga Base masing-masing supplier.</div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Supplier</th><th>Bobot</th><th>Harga</th><th>Diskon</th><th>Harga Base</th><th>Margin (Rp)</th><th>Margin (%)</th></tr></thead>
+                <tbody id="ph-breakdown-body"><tr><td colspan="7" class="recent-empty">Isi harga supplier untuk melihat breakdown</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:18px;">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">history</span> Riwayat Penetapan Harga</div>
+              <button class="btn-secondary" onclick="loadPenetapanHargaHistory()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Tanggal</th><th>Waktu</th><th>Input Oleh</th><th>Sys Ref Price</th><th>Margin</th><th>Harga Jual</th></tr></thead>
+                <tbody id="ph-history-body"><tr><td colspan="6" class="recent-empty">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        <section class="page" id="page-profile-mitra">
+          <div id="mitra-list-view">
+            <div class="page-header"><h1>Profile Mitra</h1><p>Pusat informasi seluruh mitra bisnis — Supplier, Buyer, atau keduanya.</p></div>
+
+            <div class="card" style="margin-bottom:18px;">
+              <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
+                <div style="flex:1; min-width:200px;">
+                  <label class="spt-filter-label">Cari Nama Perusahaan</label>
+                  <select id="mitra-search" class="date-picker-input" style="width:100%;" onchange="renderMitraTable()">
+                    <option value="">Semua Perusahaan</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="spt-filter-label">Jenis Mitra</label>
+                  <select id="mitra-filter-jenis" class="date-picker-input" onchange="renderMitraTable()">
+                    <option value="">Semua</option>
+                    <option value="Supplier">Supplier</option>
+                    <option value="Buyer">Buyer</option>
+                    <option value="Supplier & Buyer">Supplier & Buyer</option>
+                    <option value="Belum ada transaksi">Belum ada transaksi</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="spt-filter-label">Status</label>
+                  <select id="mitra-filter-status" class="date-picker-input" onchange="renderMitraTable()">
+                    <option value="">Semua</option>
+                    <option value="Aktif">Aktif</option>
+                    <option value="Nonaktif">Nonaktif</option>
+                  </select>
+                </div>
+                <button class="btn btn-secondary" onclick="loadMitraList()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div style="overflow-x:auto;">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th class="mitra-sort-th" onclick="sortMitraTable('namaPerusahaan')">Nama Perusahaan</th>
+                      <th class="mitra-sort-th" onclick="sortMitraTable('jenisMitra')">Jenis Mitra</th>
+                      <th>Kategori</th>
+                      <th>Status</th>
+                      <th>Kota</th>
+                      <th>PIC Utama</th>
+                      <th class="mitra-sort-th" onclick="sortMitraTable('totalPembelian')">Total Pembelian</th>
+                      <th class="mitra-sort-th" onclick="sortMitraTable('totalPenjualan')">Total Penjualan</th>
+                      <th>Status PKS</th>
+                      <th>Sisa Masa PKS</th>
+                      <th>Company Visit Terakhir</th>
+                      <th>Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mitra-table-body"><tr><td colspan="12" class="recent-empty">Memuat...</td></tr></tbody>
+                </table>
+              </div>
+              <div id="mitra-pagination" class="mitra-pagination"></div>
+            </div>
+          </div>
+
+          <div id="mitra-detail-view" style="margin-top:18px;">
+            <div class="page-header">
+              <h1 style="font-size:18px;">Detail Mitra</h1>
+            </div>
+
+            <div class="mitra-detail-layout">
+              <div>
+                <div class="card mitra-sidebar-card">
+                  <div class="mitra-sidebar-logo" id="mitra-sidebar-logo">-</div>
+                  <div class="mitra-sidebar-name" id="mitra-detail-nama">-</div>
+                  <div class="mitra-sidebar-badges" id="mitra-detail-subtitle"></div>
+                </div>
+                <div class="card" style="margin-top:12px; padding:8px;">
+                  <div class="mitra-tabs">
+                    <div class="mitra-tab active" onclick="showMitraTab('overview', this)"><span class="material-symbols-rounded">badge</span> Overview</div>
+                    <div class="mitra-tab" onclick="showMitraTab('transaksi', this)"><span class="material-symbols-rounded">receipt_long</span> Transaksi</div>
+                    <div class="mitra-tab" onclick="showMitraTab('pks', this)"><span class="material-symbols-rounded">gavel</span> PKS &amp; Legal</div>
+                    <div class="mitra-tab" onclick="showMitraTab('dokumen', this)"><span class="material-symbols-rounded">description</span> Dokumen PKS</div>
+                    <div class="mitra-tab" onclick="showMitraTab('visit', this)"><span class="material-symbols-rounded">event</span> Company Visit</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div class="mitra-tab-content active" id="mitra-tab-overview">
+                  <div class="mitra-overview-grid">
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">badge</span> Informasi Umum</div>
+                      <div class="mitra-info-grid" id="mitra-info-umum"></div>
+                    </div>
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">contact_phone</span> Kontak &amp; PIC</div>
+                      <div class="mitra-info-grid" id="mitra-info-kontak"></div>
+                    </div>
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">factory</span> Produk &amp; Lokasi</div>
+                      <div class="mitra-info-grid" id="mitra-info-produk"></div>
+                    </div>
+                  </div>
+                  <div class="card" style="margin-top:18px;">
+                    <div class="card-title-row">
+                      <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">edit</span> Edit Profil Mitra</div>
+                    </div>
+                    <div class="form-grid" id="mitra-edit-form"></div>
+                    <button class="btn btn-primary" style="margin-top:14px;" onclick="submitMitraProfile()"><span class="material-symbols-rounded">save</span> Simpan Profil</button>
+                  </div>
+                </div>
+
+                <div class="mitra-tab-content" id="mitra-tab-transaksi">
+                  <div class="mitra-overview-grid" id="mitra-transaksi-kpi" style="margin-bottom:18px;"></div>
+                  <div class="grid-2col">
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">shopping_cart</span> Histori Pembelian</div>
+                      <div style="overflow-x:auto;">
+                        <table class="data-table">
+                          <thead><tr><th>Tanggal</th><th>No PO</th><th>Gram</th><th>Nominal</th></tr></thead>
+                          <tbody id="mitra-pembelian-body"><tr><td colspan="4" class="recent-empty">-</td></tr></tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">sell</span> Histori Penjualan</div>
+                      <div style="overflow-x:auto;">
+                        <table class="data-table">
+                          <thead><tr><th>Tanggal</th><th>No Invoice</th><th>Gram</th><th>Nominal</th></tr></thead>
+                          <tbody id="mitra-penjualan-body"><tr><td colspan="4" class="recent-empty">-</td></tr></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mitra-tab-content" id="mitra-tab-pks">
+                  <div class="mitra-overview-grid">
+                    <div class="card" style="grid-column: span 1;">
+                      <div class="form-section-title"><span class="material-symbols-rounded">gavel</span> PKS Aktif</div>
+                      <div class="mitra-info-grid" id="mitra-pks-info"></div>
+                    </div>
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">notifications_active</span> Reminder &amp; Perpanjangan</div>
+                      <div id="mitra-pks-countdown-box"></div>
+                      <div class="mitra-reminder-row" id="mitra-pks-reminder"></div>
+                    </div>
+                    <div class="card">
+                      <div class="form-section-title"><span class="material-symbols-rounded">add_circle</span> Tambah / Edit PKS</div>
+                      <div class="form-grid" id="mitra-pks-form"></div>
+                      <button class="btn btn-primary" style="margin-top:14px;" onclick="submitMitraPKS()"><span class="material-symbols-rounded">save</span> Simpan PKS</button>
+                      <button class="btn btn-secondary" style="margin-top:14px; margin-left:8px;" onclick="resetMitraPKSForm()">Batal Edit</button>
+                    </div>
+                  </div>
+                  <div class="card" style="margin-top:18px;">
+                    <div class="form-section-title"><span class="material-symbols-rounded">history</span> Riwayat PKS</div>
+                    <div id="mitra-pks-list"><div class="recent-empty">Memuat...</div></div>
+                  </div>
+                </div>
+                <div class="mitra-tab-content" id="mitra-tab-dokumen">
+                  <div class="card" style="margin-bottom:18px;">
+                    <div class="form-section-title"><span class="material-symbols-rounded">upload_file</span> Upload Dokumen PKS</div>
+                    <div class="form-grid">
+                      <div class="form-group"><label>File</label><input type="file" id="mdoc-file"></div>
+                      <div class="form-group"><label>Nama Dokumen</label><input type="text" id="mdoc-nama"></div>
+                      <div class="form-group">
+                        <label>Jenis Dokumen</label>
+                        <select id="mdoc-jenis">
+                          <option>PKS Utama</option>
+                          <option>Addendum</option>
+                          <option>Lampiran</option>
+                          <option>Berita Acara</option>
+                          <option>Dokumen Pendukung</option>
+                        </select>
+                      </div>
+                      <div class="form-group"><label>Versi</label><input type="text" id="mdoc-versi" placeholder="1.0"></div>
+                      <div class="form-group"><label>Tanggal Dokumen</label><input type="date" id="mdoc-tanggal"></div>
+                      <div class="form-group"><label>PKS Terkait (opsional)</label><select id="mdoc-pks"><option value="">- Tidak terkait PKS tertentu -</option></select></div>
+                      <div class="form-group" style="grid-column:1/-1;"><label>Catatan</label><textarea id="mdoc-catatan" rows="2"></textarea></div>
+                    </div>
+                    <button class="btn btn-primary" style="margin-top:14px;" onclick="submitMitraDocument()"><span class="material-symbols-rounded">upload</span> Upload Dokumen</button>
+                  </div>
+                  <div class="card">
+                    <div class="form-section-title"><span class="material-symbols-rounded">folder_open</span> Repository Dokumen</div>
+                    <div id="mitra-doc-list"><div class="recent-empty">Memuat...</div></div>
+                  </div>
+                </div>
+                <div class="mitra-tab-content" id="mitra-tab-visit">
+                  <div class="card"><div class="recent-empty">Fitur Company Visit akan hadir di fase berikutnya.</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: PEMBELIAN ============ -->
+        <section class="page" id="page-pembelian">
+          <div class="page-header"><h1>Pembelian</h1><p>Transaksi pembelian emas dari supplier — struktur lengkap sesuai rekap perusahaan.</p></div>
+
+          <div class="grid-2col">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">shopping_cart</span> Input Pembelian</div>
+              <form id="form-pembelian" onsubmit="return submitPembelian(event)">
+                <input type="hidden" id="pmb-edit-id" value="">
+                <div class="form-grid">
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="pmb-tanggal" required></div>
+                  <div class="form-group"><label>Nomor PO</label><input type="text" id="pmb-nomor-po" required placeholder="00500/PO-00017/2026"></div>
+                  <div class="form-group span-2"><label>Seller</label><input type="text" id="pmb-seller" list="seller-list" required placeholder="Nama perusahaan supplier"><datalist id="seller-list"></datalist></div>
+                  <div class="form-group"><label>Qty (Gram)</label><input type="number" step="0.01" id="pmb-qty" oninput="updatePembelianPreview()" placeholder="0"></div>
+                  <div class="form-group"><label>Harga (Rp/gr)</label><input type="text" inputmode="numeric" id="pmb-harga" oninput="formatCurrencyInput(this); updatePembelianPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>After Diskon (Rp/gr)</label><input type="text" inputmode="numeric" id="pmb-after-diskon" oninput="formatCurrencyInput(this); updatePembelianPreview();" placeholder="Kosongkan jika sama dengan Harga"></div>
+                  <div class="form-group"><label>Total Harga (Otomatis)</label><div class="form-computed" id="pmb-total-preview">Rp0</div></div>
+                  <div class="form-group"><label>Pajak WAPU (Otomatis)</label><div class="form-computed" id="pmb-wapu-preview">Rp0</div></div>
+                  <div class="form-group"><label>Total Include Pajak (Otomatis)</label><div class="form-computed" id="pmb-include-preview">Rp0</div></div>
+                  <div class="form-group"><label>Invoice Ref (dari Seller)</label><input type="text" id="pmb-invoice-ref" placeholder="INV.EL-2607-0004"></div>
+                  <div class="form-group span-2"><label>Catatan</label><textarea id="pmb-catatan" placeholder="Opsional"></textarea></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="pmb-submit-btn"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-pembelian')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                  <button type="button" class="btn btn-secondary" id="pmb-cancel-edit-btn" style="display:none;" onclick="cancelEditPembelian()"><span class="material-symbols-rounded">close</span> Batal Edit</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">history</span> Pembelian Hari Ini</div>
+              <div class="recent-list" id="pmb-recent-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:18px;">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">receipt_long</span> Riwayat Pembelian (30 Hari Terakhir)</div>
+              <button class="btn btn-secondary" onclick="loadPembelianHistoryTable()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Tanggal</th><th>No. PO</th><th>Seller</th><th>Qty</th><th>After Diskon</th><th>Total Include Pajak</th><th>Invoice Ref</th></tr></thead>
+                <tbody id="pembelian-history-body"><tr><td colspan="7" class="recent-empty">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        <section class="page" id="page-penjualan">
+          <div class="page-header"><h1>Penjualan</h1><p>Transaksi penjualan emas ke buyer — struktur lengkap sesuai rekap perusahaan.</p></div>
+
+          <div class="mini-kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="card mini-kpi"><div class="mini-kpi-label">Total Nominal</div><div class="mini-kpi-value" id="mini-sales-nominal">-</div></div>
+            <div class="card mini-kpi"><div class="mini-kpi-label">Total Gramasi</div><div class="mini-kpi-value" id="mini-sales-gram">-</div></div>
+            <div class="card mini-kpi"><div class="mini-kpi-label">Jumlah Transaksi</div><div class="mini-kpi-value" id="mini-sales-count">-</div></div>
+          </div>
+
+          <div class="grid-2col">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">sell</span> Input Penjualan</div>
+              <form id="form-penjualan" onsubmit="return submitPenjualan(event)">
+                <input type="hidden" id="pjl-edit-id" value="">
+                <div class="form-grid">
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="pjl-tanggal" required></div>
+                  <div class="form-group"><label>Nomor Invoice</label><input type="text" id="pjl-nomor-invoice" required placeholder="00500/INV-00017/2026"></div>
+                  <div class="form-group"><label>Harga per Gram</label><input type="text" inputmode="numeric" id="pjl-harga" oninput="formatCurrencyInput(this); updatePenjualanPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>Qty (Gram)</label><input type="number" step="0.01" id="pjl-qty" oninput="updatePenjualanPreview()" placeholder="0"></div>
+                  <div class="form-group"><label>Total Harga (Otomatis)</label><div class="form-computed" id="pjl-total-preview">Rp0</div></div>
+                  <div class="form-group"><label>PPh Pasal 22 (Otomatis)</label><div class="form-computed" id="pjl-pph-preview">Rp0</div></div>
+                  <div class="form-group"><label>Total After Tax (Otomatis)</label><div class="form-computed" id="pjl-aftertax-preview">Rp0</div></div>
+                  <div class="form-group"><label>Pembeli</label><input type="text" id="pjl-pembeli" list="pembeli-list" required placeholder="Nama perusahaan pembeli"><datalist id="pembeli-list"></datalist></div>
+                  <div class="form-group"><label>Denominasi</label>
+                    <select id="pjl-denominasi"><option value="1.000">1.000 gr</option><option value="500">500 gr</option><option value="100">100 gr</option><option value="50">50 gr</option><option value="25">25 gr</option><option value="10">10 gr</option></select>
+                  </div>
+                  <div class="form-group"><label>Merk</label><select id="pjl-merk"><option value="">Pilih merk</option></select></div>
+                  <div class="form-group"><label>Status</label>
+                    <select id="pjl-status"><option value="V">V (Selesai)</option><option value="Pending">Pending</option></select>
+                  </div>
+                  <div class="form-group"><label>Bank</label><input type="text" id="pjl-bank" placeholder="BRI"></div>
+                  <div class="form-group"><label>Tanggal Pengambilan</label><input type="date" id="pjl-tgl-ambil"></div>
+                  <div class="form-group"><label>Estimasi Penjemputan</label><input type="date" id="pjl-estimasi"></div>
+                  <div class="form-group span-2"><label>Catatan</label><textarea id="pjl-catatan" placeholder="Opsional"></textarea></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary" id="pjl-submit-btn"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-penjualan')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                  <button type="button" class="btn btn-secondary" id="pjl-cancel-edit-btn" style="display:none;" onclick="cancelEditPenjualan()"><span class="material-symbols-rounded">close</span> Batal Edit</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">history</span> Penjualan Hari Ini</div>
+              <div class="recent-list" id="pjl-recent-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+          </div>
+
+          <div class="card chart-card" style="margin:18px 0;">
+            <div class="chart-card-title"><span><span class="material-symbols-rounded">sell</span>Gramasi per Buyer (Seluruh Waktu)</span></div>
+            <div class="chart-canvas-wrap"><canvas id="chart-sales-buyer-page"></canvas></div>
+          </div>
+
+          <div class="card">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">receipt_long</span> Riwayat Penjualan (30 Hari Terakhir)</div>
+              <button class="btn btn-secondary" onclick="loadPenjualanHistoryTable()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Tanggal</th><th>No. Invoice</th><th>Harga/gr</th><th>Qty</th><th>Total After Tax</th><th>Pembeli</th><th>Merk</th><th>Status</th><th>Aksi</th></tr></thead>
+                <tbody id="penjualan-history-body"><tr><td colspan="9" class="recent-empty">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ PAGE: INVOICE ============ -->
+        <section class="page" id="page-invoice">
+          <div class="page-header"><h1>Invoice</h1><p>Input & kelola invoice penjualan.</p></div>
+
+          <div class="grid-2col">
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">request_quote</span> Input Invoice Penjualan</div>
+              <form id="form-invoice" onsubmit="return submitInvoice(event)">
+                <div class="form-grid">
+                  <div class="form-group"><label>Nomor Invoice</label><input type="text" id="inv-nomor" required placeholder="INV-2026-001"></div>
+                  <div class="form-group"><label>Tanggal</label><input type="date" id="inv-tanggal" required></div>
+                  <div class="form-group span-2">
+                    <label>Buyer</label>
+                    <input type="text" id="inv-buyer" list="buyer-list" required placeholder="Ketik nama buyer — otomatis dibuat kalau belum ada">
+                    <datalist id="buyer-list"></datalist>
+                  </div>
+                  <div class="form-group"><label>Harga (Rp/gr)</label><input type="text" inputmode="numeric" id="inv-harga" oninput="formatCurrencyInput(this); updateNominalPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>Gram</label><input type="number" step="0.01" id="inv-gram" oninput="updateNominalPreview();" placeholder="0"></div>
+                  <div class="form-group"><label>Nominal (Otomatis)</label><div class="form-computed" id="inv-nominal-preview">Rp0</div></div>
+                  <div class="form-group"><label>Status</label>
+                    <select id="inv-status"><option value="Lunas">Lunas</option><option value="Belum Lunas">Belum Lunas</option></select>
+                  </div>
+                  <div class="form-group span-2"><label>Catatan</label><textarea id="inv-catatan" placeholder="Opsional"></textarea></div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary"><span class="material-symbols-rounded">save</span> Simpan</button>
+                  <button type="button" class="btn btn-secondary" onclick="resetForm('form-invoice')"><span class="material-symbols-rounded">refresh</span> Reset</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="form-section-title"><span class="material-symbols-rounded">history</span> Invoice Hari Ini</div>
+              <div class="recent-list" id="inv-recent-list"><div class="recent-empty">Memuat...</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-history">
+          <div class="page-header"><h1>History</h1><p>Riwayat seluruh perubahan data (audit trail).</p></div>
+          <div class="card">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">history</span> Audit Trail (50 Terbaru)</div>
+              <button class="btn btn-secondary" onclick="loadAuditTrail()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Waktu</th><th>User</th><th>Aksi</th><th>Modul</th><th>Detail</th></tr>
+                </thead>
+                <tbody id="audit-table-body">
+                  <tr><td colspan="5" class="recent-empty">Memuat...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-analytics">
+          <div class="page-header"><h1>Analytics</h1><p>Analisis mendalam & AI Insight.</p></div>
+          <div class="card" style="margin-bottom:18px;">
+            <div class="card-title-row">
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">auto_awesome</span> AI Insight</div>
+              <button class="btn btn-secondary" onclick="loadAnalyticsPage()"><span class="material-symbols-rounded">refresh</span> Refresh</button>
+            </div>
+            <div class="insight-grid" id="insight-grid">
+              <div class="recent-empty">Memuat...</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-settings">
+          <div class="page-header"><h1>Settings</h1><p>Role management & konfigurasi aplikasi.</p></div>
+
+          <div class="card settings-section">
+            <div class="settings-section-title"><span class="material-symbols-rounded">sync</span> Sync Transaksi</div>
+            <p style="font-size:12.5px; color:var(--color-text-muted); margin-bottom:14px;">
+              Tarik transaksi baru yang sudah diketik di sheet sumber (<code>F.1.Input_Trans_Jual</code> &amp; <code>F.2.Input_Trans_Beli</code>) ke database aplikasi.
+              Aman dijalankan berkali-kali — transaksi yang sudah pernah masuk (dicek dari Nomor Invoice/PO) tidak akan dobel.
+            </p>
+            <button class="btn btn-primary" onclick="submitSyncTransaksi()"><span class="material-symbols-rounded">cloud_sync</span> Sync Transaksi Sekarang</button>
+            <div id="sync-result" style="margin-top:10px; font-size:12.5px;"></div>
+          </div>
+
+          <div class="card settings-section">
+            <div class="settings-section-title"><span class="material-symbols-rounded">admin_panel_settings</span> Role Management</div>
+            <div class="inline-form">
+              <div class="form-group"><label>Email</label><input type="email" id="user-email" placeholder="nama@pegadaian.co.id"></div>
+              <div class="form-group"><label>Nama</label><input type="text" id="user-nama" placeholder="Nama lengkap"></div>
+              <div class="form-group">
+                <label>Role</label>
+                <select id="user-role">
+                  <option value="Viewer">Viewer</option>
+                  <option value="Supervisor">Supervisor</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="submitAddUser()"><span class="material-symbols-rounded">person_add</span> Tambah User</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
+                <tbody id="user-table-body"><tr><td colspan="4" class="recent-empty">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+            <div class="form-hint" style="margin-top:8px;">Hanya Admin yang bisa menambah user &amp; mengubah role. Viewer bisa input transaksi, Supervisor bisa edit, Admin bisa hapus &amp; kelola user.</div>
+          </div>
+
+          <div class="card settings-section">
+            <div class="settings-section-title"><span class="material-symbols-rounded">storefront</span> Supplier Management</div>
+            <div class="inline-form">
+              <div class="form-group"><label>Nama Supplier Baru</label><input type="text" id="new-supplier-nama" placeholder="Nama supplier"></div>
+              <button class="btn btn-primary" onclick="submitAddSupplier()"><span class="material-symbols-rounded">add</span> Tambah Supplier</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead><tr><th>Nama</th><th>Status</th></tr></thead>
+                <tbody id="supplier-table-body"><tr><td colspan="2" class="recent-empty">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Kirim Confirmation Deal ==================== -->
+  <div id="deal-email-modal-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title"><span class="material-symbols-rounded">mail</span> Kirim Confirmation Deal</div>
+        <button type="button" class="icon-btn" onclick="closeDealEmailModal()"><span class="material-symbols-rounded">close</span></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Invoice</label>
+          <div class="form-computed" id="deal-modal-invoice-label">-</div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>Email Tujuan (To)</label>
+          <input type="text" id="deal-modal-to" placeholder="email1@contoh.com, email2@contoh.com">
+          <div class="form-hint">Pisahkan dengan koma kalau lebih dari satu. Kosongkan untuk pakai Email PIC otomatis dari Master_Customer.</div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>CC (opsional)</label>
+          <input type="text" id="deal-modal-cc" placeholder="email1@contoh.com, email2@contoh.com">
+          <div class="form-hint">Pisahkan dengan koma kalau lebih dari satu.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeDealEmailModal()">Batal</button>
+        <button type="button" class="btn btn-primary" id="deal-modal-send-btn" onclick="submitDealEmailModal()"><span class="material-symbols-rounded">send</span> Kirim</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
