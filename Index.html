@@ -43,9 +43,6 @@
         <div class="nav-item" onclick="showPage('supplier-price', this)">
           <span class="material-symbols-rounded">storefront</span> Supplier Price
         </div>
-        <div class="nav-item" onclick="showPage('benchmark', this)">
-          <span class="material-symbols-rounded">monitoring</span> Benchmark Market
-        </div>
         <div class="nav-item" onclick="showPage('piutang', this)">
           <span class="material-symbols-rounded">receipt_long</span> Piutang Supplier
         </div>
@@ -715,11 +712,8 @@
             <div class="form-section-title"><span class="material-symbols-rounded">lightbulb</span> Analytics &amp; Insight</div>
             <div id="spt-insight-body" class="spt-insight-grid"><div class="recent-empty">Memuat...</div></div>
           </div>
-        </section>
 
-        <!-- ============ PAGE: BENCHMARK MARKET (Analisis) ============ -->
-        <section class="page" id="page-benchmark">
-          <div class="page-header"><h1>Benchmark Market</h1><p>Spot Gold, LBMA, Kitco, XAUIDRK.</p></div>
+          <div class="form-section-title" style="margin-top:18px;"><span class="material-symbols-rounded">monitoring</span> Benchmark Market</div>
 
           <div class="mini-kpi-grid">
             <div class="card mini-kpi"><div class="mini-kpi-label">Spot Gold</div><div class="mini-kpi-value" id="mini-spotgold">-</div></div>
@@ -798,48 +792,34 @@
 
           <div class="card" style="margin-bottom:18px;">
             <div class="card-title-row">
-              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">tune</span> Konfigurasi Bobot Supplier</div>
+              <div class="form-section-title" style="margin:0;"><span class="material-symbols-rounded">payments</span> Input Harga & Penetapan Hari Ini</div>
               <button class="btn-secondary" onclick="autoDistribusiBobot()"><span class="material-symbols-rounded">balance</span> Rata Merata</button>
             </div>
+            <div class="form-hint" style="margin-bottom:10px;">Atur Bobot (%) &amp; status Aktif tiap supplier, lalu isi Harga &amp; Diskon — hasil kalkulasi berubah otomatis setiap ada perubahan.</div>
             <div style="overflow-x:auto;">
               <table class="data-table">
-                <thead><tr><th>Supplier</th><th>Bobot (%)</th><th>Aktif</th></tr></thead>
-                <tbody id="bobot-table-body"><tr><td colspan="3" class="recent-empty">Memuat...</td></tr></tbody>
+                <thead><tr><th>Supplier</th><th>Bobot (%)</th><th>Aktif</th><th>Harga (Rp/gr)</th><th>Diskon (Rp/gr)</th></tr></thead>
+                <tbody id="ph-harga-table-body"><tr><td colspan="5" class="recent-empty">Memuat...</td></tr></tbody>
               </table>
             </div>
             <div class="total-bar-ph" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; font-size:13px; font-weight:700;">
               <span>Total Bobot Aktif</span>
               <span id="ph-total-bobot">0%</span>
             </div>
-            <div style="padding:0 14px 14px;">
-              <button class="btn-primary" onclick="submitBobotSupplier()"><span class="material-symbols-rounded">save</span> Simpan Bobot</button>
+            <div class="form-grid" style="padding:14px;">
+              <div class="form-group"><label>Margin (%)</label><input type="number" id="ph-margin" step="0.01" min="0" placeholder="0" oninput="calcPenetapanHarga()"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn-primary" onclick="submitPenetapanHarga()"><span class="material-symbols-rounded">check_circle</span> Simpan Penetapan Harga</button>
             </div>
           </div>
 
-          <div class="grid-2col">
-            <div class="card">
-              <div class="form-section-title"><span class="material-symbols-rounded">payments</span> Input Harga & Penetapan Hari Ini</div>
-              <div style="overflow-x:auto;">
-                <table class="data-table">
-                  <thead><tr><th>Supplier</th><th>Bobot</th><th>Harga (Rp/gr)</th><th>Diskon (Rp/gr)</th></tr></thead>
-                  <tbody id="ph-harga-table-body"><tr><td colspan="4" class="recent-empty">Memuat...</td></tr></tbody>
-                </table>
-              </div>
-              <div class="form-grid" style="padding:14px;">
-                <div class="form-group"><label>Margin (%)</label><input type="number" id="ph-margin" step="0.01" min="0" placeholder="0" oninput="calcPenetapanHarga()"></div>
-              </div>
-              <div class="form-actions">
-                <button class="btn-primary" onclick="submitPenetapanHarga()"><span class="material-symbols-rounded">check_circle</span> Simpan Penetapan Harga</button>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="form-section-title"><span class="material-symbols-rounded">calculate</span> Kalkulasi Real-time</div>
-              <div id="ph-preview-rows" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;"></div>
-              <div class="mini-kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
-                <div class="card mini-kpi"><div class="mini-kpi-label">System Reference Price</div><div class="mini-kpi-value" id="ph-sys-ref">Rp0</div></div>
-                <div class="card mini-kpi" style="background:var(--color-gold-soft);"><div class="mini-kpi-label">Harga Jual</div><div class="mini-kpi-value" id="ph-harga-jual">Rp0</div></div>
-              </div>
+          <div class="card" style="margin-bottom:18px;">
+            <div class="form-section-title"><span class="material-symbols-rounded">calculate</span> Hasil Penetapan Harga</div>
+            <div id="ph-preview-rows" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;"></div>
+            <div class="mini-kpi-grid" style="grid-template-columns: repeat(2, 1fr);">
+              <div class="card mini-kpi"><div class="mini-kpi-label">System Reference Price</div><div class="mini-kpi-value" id="ph-sys-ref">Rp0</div></div>
+              <div class="card mini-kpi" style="background:var(--color-gold-soft);"><div class="mini-kpi-label">Harga Jual</div><div class="mini-kpi-value" id="ph-harga-jual">Rp0</div></div>
             </div>
           </div>
 
