@@ -23,7 +23,6 @@
     if (pageId === 'settings') loadSettingsPage();
     if (pageId === 'supplier-price') loadSupplierPriceTrend();
     if (pageId === 'profile-mitra') loadMitraList();
-    if (pageId === 'benchmark') loadBenchmarkPage();
     if (pageId === 'penjualan') loadPenjualanPage();
     if (pageId === 'analytics') loadAnalyticsPage();
   }
@@ -1277,7 +1276,7 @@
   }
 
   // ============================================================
-  // HALAMAN BENCHMARK MARKET
+  // HALAMAN BENCHMARK MARKET (bagian dari Supplier Price)
   // ============================================================
   function loadBenchmarkPage() {
     google.script.run
@@ -1289,7 +1288,7 @@
       })
       .withFailureHandler(handleLoadError)
       .getTodayBenchmark(null);
-    switchBenchmarkTrend(7, document.querySelector('#page-benchmark .trend-tab'));
+    switchBenchmarkTrend(7, document.querySelector('#page-supplier-price .trend-tab'));
   }
 
   function renderBenchmarkTrendChart(list) {
@@ -1331,7 +1330,7 @@
   }
 
   function switchBenchmarkTrend(days, tabEl) {
-    document.querySelectorAll('#page-benchmark .trend-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#page-supplier-price .trend-tab').forEach(t => t.classList.remove('active'));
     if (tabEl) tabEl.classList.add('active');
     google.script.run.withSuccessHandler(renderBenchmarkTrendChart).withFailureHandler(handleLoadError).getBenchmarkTrend(days);
   }
@@ -2122,6 +2121,8 @@
     }).withFailureHandler(handleLoadError).getSupplierPriceTimeSeries(start, end, freq);
 
     google.script.run.withSuccessHandler(renderSupplierPriceKpiInsight).withFailureHandler(handleLoadError).getSupplierPriceKpiAndInsights(start, end);
+
+    loadBenchmarkPage();
   }
 
   function renderSupplierPriceChart(data) {
@@ -2748,12 +2749,10 @@
   var phBobotList = [];
 
   function loadPenetapanHargaPage() {
-    document.getElementById('bobot-table-body').innerHTML = '<tr><td colspan="3" class="recent-empty">Memuat...</td></tr>';
-    document.getElementById('ph-harga-table-body').innerHTML = '<tr><td colspan="3" class="recent-empty">Memuat...</td></tr>';
+    document.getElementById('ph-harga-table-body').innerHTML = '<tr><td colspan="5" class="recent-empty">Memuat...</td></tr>';
     google.script.run
       .withSuccessHandler(function (list) {
         phBobotList = list || [];
-        renderBobotTable(phBobotList);
         renderPenetapanHargaInputTable(phBobotList);
       })
       .withFailureHandler(handleLoadError)
@@ -2806,18 +2805,6 @@
     });
   }
 
-  function renderBobotTable(list) {
-    const body = document.getElementById('bobot-table-body');
-    if (!list.length) { body.innerHTML = '<tr><td colspan="3" class="recent-empty">Belum ada supplier</td></tr>'; return; }
-    body.innerHTML = list.map(function (b, i) {
-      const badge = b.isMarket ? ' <span class="badge gold" style="margin-left:6px;">Live</span>' : '';
-      return '<tr><td><b>' + b.nama + '</b>' + badge + '</td>' +
-        '<td><input type="number" class="date-picker-input" style="width:90px;" id="bobot-val-' + i + '" value="' + b.bobot + '" min="0" max="100" step="0.01" oninput="calcTotalBobot()"></td>' +
-        '<td><input type="checkbox" id="bobot-aktif-' + i + '" ' + (b.aktif ? 'checked' : '') + ' onchange="calcTotalBobot(); renderPenetapanHargaInputTable(phBobotList);"></td></tr>';
-    }).join('');
-    calcTotalBobot();
-  }
-
   function calcTotalBobot() {
     let total = 0;
     phBobotList.forEach(function (b, i) {
@@ -2848,52 +2835,37 @@
       if (valEl) valEl.value = pos === aktifIdx.length - 1 ? last : each;
     });
     calcTotalBobot();
-  }
-
-  function submitBobotSupplier() {
-    const total = calcTotalBobot();
-    if (Math.abs(total - 100) > 0.01) { showToast('Total bobot supplier aktif harus 100%', 'error'); return; }
-    const data = phBobotList.map(function (b, i) {
-      const aktifEl = document.getElementById('bobot-aktif-' + i);
-      const valEl = document.getElementById('bobot-val-' + i);
-      return { supplierId: b.supplierId, bobot: Number(valEl.value) || 0, aktif: aktifEl.checked };
-    });
-    google.script.run
-      .withSuccessHandler(function () {
-        showToast('Bobot supplier berhasil disimpan', 'success');
-        loadPenetapanHargaPage();
-      })
-      .withFailureHandler(function (err) { showToast('Gagal menyimpan: ' + (err.message || err), 'error'); })
-      .saveBobotSupplierList(data);
+    calcPenetapanHarga();
   }
 
   function renderPenetapanHargaInputTable(list) {
     const body = document.getElementById('ph-harga-table-body');
-    const aktif = list.filter(function (b, i) {
-      const el = document.getElementById('bobot-aktif-' + i);
-      return el ? el.checked : b.aktif;
-    });
-    if (!aktif.length) { body.innerHTML = '<tr><td colspan="4" class="recent-empty">Tidak ada supplier aktif</td></tr>'; return; }
-    body.innerHTML = aktif.map(function (b) {
+    if (!list.length) { body.innerHTML = '<tr><td colspan="5" class="recent-empty">Belum ada supplier</td></tr>'; return; }
+    body.innerHTML = list.map(function (b, i) {
       const badge = b.isMarket ? ' <span class="badge gold" style="margin-left:6px; font-size:9px;">Live</span>' : '';
       const hargaAttrs = b.isMarket ? ' readonly title="Terisi otomatis dari harga market live"' : '';
       const diskonAttrs = b.isMarket ? ' readonly value="0" title="Diskon tidak berlaku untuk indikator market"' : '';
-      return '<tr><td><b>' + b.nama + '</b>' + badge + '</td><td>' + b.bobot + '%</td>' +
+      return '<tr><td><b>' + b.nama + '</b>' + badge + '</td>' +
+        '<td><input type="number" class="date-picker-input" style="width:90px;" id="bobot-val-' + i + '" value="' + b.bobot + '" min="0" max="100" step="0.01" oninput="calcTotalBobot(); calcPenetapanHarga();"></td>' +
+        '<td><input type="checkbox" id="bobot-aktif-' + i + '" ' + (b.aktif ? 'checked' : '') + ' onchange="calcTotalBobot(); calcPenetapanHarga();"></td>' +
         '<td><input type="text" inputmode="numeric" class="date-picker-input" style="width:130px;"' + hargaAttrs + ' id="ph-harga-' + b.supplierId + '" oninput="formatCurrencyInput(this); calcPenetapanHarga();" placeholder="0"></td>' +
         '<td><input type="text" inputmode="numeric" class="date-picker-input" style="width:110px;"' + diskonAttrs + ' id="ph-diskon-' + b.supplierId + '" oninput="formatCurrencyInput(this); calcPenetapanHarga();" placeholder="0"></td></tr>';
     }).join('');
+    calcTotalBobot();
     calcPenetapanHarga();
     applyMarketRefToInputTable();
   }
 
   function collectPenetapanHargaItems() {
-    return phBobotList.map(function (b) {
+    return phBobotList.map(function (b, i) {
+      const bobotEl = document.getElementById('bobot-val-' + i);
+      const bobot = bobotEl ? (Number(bobotEl.value) || 0) : b.bobot;
       const hargaEl = document.getElementById('ph-harga-' + b.supplierId);
       const diskonEl = document.getElementById('ph-diskon-' + b.supplierId);
       const harga = hargaEl ? getCurrencyValue(hargaEl) : 0;
       const diskon = diskonEl ? getCurrencyValue(diskonEl) : 0;
       const hargaBase = harga - diskon;
-      return { supplierId: b.supplierId, nama: b.nama, harga: harga, diskon: diskon, hargaBase: hargaBase, bobot: b.bobot, aktif: hargaBase > 0 };
+      return { supplierId: b.supplierId, nama: b.nama, harga: harga, diskon: diskon, hargaBase: hargaBase, bobot: bobot, aktif: hargaBase > 0 };
     });
   }
 
