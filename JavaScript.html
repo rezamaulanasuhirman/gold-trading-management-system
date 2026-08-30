@@ -3109,36 +3109,4 @@
       .saveSupplierDocumentChecklistItem({ supplierNama: sdcCurrentSupplier, kode: kode, status: checked ? 'LENGKAP' : 'BELUM_ADA' });
   }
 
-  function openSupplierDocImportModal() {
-    document.getElementById('sdc-import-result').innerHTML = '';
-    document.getElementById('sdc-import-url').value = (sdcMonitoringData && sdcMonitoringData.defaultSourceSpreadsheetId) || '';
-    document.getElementById('sdc-import-modal-overlay').style.display = 'flex';
-  }
-
-  function closeSupplierDocImportModal() {
-    document.getElementById('sdc-import-modal-overlay').style.display = 'none';
-  }
-
-  function submitSupplierDocImport() {
-    const url = document.getElementById('sdc-import-url').value.trim();
-    if (!url) { showToast('Isi URL/ID spreadsheet sumber dulu', 'warning'); return; }
-    const resultEl = document.getElementById('sdc-import-result');
-    resultEl.innerHTML = 'Mengimpor data, mohon tunggu...';
-    google.script.run
-      .withSuccessHandler(function (res) {
-        let html = '<b>Import selesai.</b><br>Item diimpor: ' + res.itemsImported + '<br>Supplier cocok: ' + (res.suppliersMatched.join(', ') || '-');
-        if (res.unmatchedSheets.length) html += '<br><span style="color:var(--color-warning);">Sheet tidak ditemukan/tidak cocok: ' + res.unmatchedSheets.join('; ') + '</span>';
-        if (res.unmatchedRows.length) {
-          html += '<br><span style="color:var(--color-warning);">Baris tidak dikenali (isi manual di Detail Supplier):</span><ul style="margin:4px 0 0 18px; padding:0;">' +
-            res.unmatchedRows.slice(0, 20).map(function (u) { return '<li>' + sdcEscapeHtml(u.supplier) + ' baris ' + u.baris + ': "' + sdcEscapeHtml(u.teks) + '"</li>'; }).join('') + '</ul>';
-        }
-        resultEl.innerHTML = html;
-        showToast('Import checklist selesai', 'success');
-        loadSupplierDocMonitoring();
-      })
-      .withFailureHandler(function (err) {
-        resultEl.innerHTML = '<span style="color:var(--color-danger);">' + (err.message || err) + '</span>';
-      })
-      .importSupplierDocumentChecklistFromSheet(url);
-  }
 </script>

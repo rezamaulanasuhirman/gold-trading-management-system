@@ -409,73 +409,125 @@ function addPenetapanHargaBobotModule() {
 // ------------------------------------------------------------
 // MODUL KELENGKAPAN DOKUMEN SUPPLIER TRADING BULION
 // Enhancement pada Monitoring Supplier PKS (halaman Profile Mitra,
-// tab baru "Kelengkapan Dokumen"). Jalankan SEKALI dari editor
-// ("addSupplierDocumentChecklistModule"). Membuat 2 sheet BARU di
-// database yang sama (mengikuti pola setupMitraSheets/addPenetapan
-// HargaBobotModule — cek getSheetByName dulu, TIDAK PERNAH menimpa
-// sheet lain): ChecklistMasterDokumen (referensi tetap, 24 baris
-// sesuai daftar checklist) dan SupplierDocumentChecklist (KOSONG —
-// tidak diisi TRUE/FALSE apapun di sini; data asli diisi lewat
-// tombol "Import dari Google Sheet" di UI, yang membaca spreadsheet
-// sumber PEMENUHAN DOKUMEN SUPPLIER TRADING BULION dengan otorisasi
-// Google akun yang menjalankan Web App).
+// tab baru "Kelengkapan Dokumen"). Master checklist dokumen (~20
+// item, jarang berubah) SUDAH DIPINDAH jadi konstanta backend
+// (CHECKLIST_MASTER_DOKUMEN di Code.gs) — lebih maintainable
+// daripada sheet terpisah untuk data referensi sekecil ini, dan
+// mengurangi satu sheet + satu read per request. Jadi function
+// setup ini SEKARANG HANYA membuat SATU sheet baru: idempotent,
+// cek getSheetByName dulu, TIDAK PERNAH menimpa/menghapus data.
+// Jalankan SEKALI dari editor Apps Script.
 // ------------------------------------------------------------
 function addSupplierDocumentChecklistModule() {
   const id = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID');
   if (!id) throw new Error('DB_SPREADSHEET_ID belum diset — jalankan setupDatabase() dulu.');
   const ss = SpreadsheetApp.openById(id);
 
-  if (!ss.getSheetByName('ChecklistMasterDokumen')) {
-    const sh = ss.insertSheet('ChecklistMasterDokumen');
-    const headers = ['Kode', 'NamaDokumen', 'Kategori', 'IsHeader', 'Urutan'];
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    formatHeader(sh, headers.length);
-
-    // Master checklist PERSIS sesuai daftar yang diberikan — data
-    // referensi tetap (bukan data transaksi supplier), bukan dummy data.
-    const rows = [
-      ['1', 'KTP Direktur Utama Perusahaan', 'A. Identitas', false, 1],
-      ['2', 'NPWP Direktur Utama Perusahaan', 'A. Identitas', false, 2],
-      ['3', 'KTP Penanggung Jawab Transaksi', 'A. Identitas', false, 3],
-      ['4', 'NPWP Penanggung Jawab Transaksi', 'A. Identitas', false, 4],
-      ['5', 'NPWP Perusahaan', 'A. Identitas', false, 5],
-      ['6', 'Surat Pengukuhan Pengusaha Kena Pajak (SPPKP)', 'B. Pajak & Perizinan', false, 6],
-      ['7', 'Surat Keterangan Terdaftar (Pajak)', 'B. Pajak & Perizinan', false, 7],
-      ['8', 'Nomor Induk Berusaha (NIB)', 'B. Pajak & Perizinan', false, 8],
-      ['9a', 'Akta Pendirian Perusahaan + SK MenKumHam', 'C. Anggaran Dasar', false, 9],
-      ['9b', 'Akta Perubahan/Pengurus Terbaru + SK MenKumHam', 'C. Anggaran Dasar', false, 10],
-      ['10', 'Sertifikat SNI', 'D. Dokumen Supplier', false, 11],
-      ['11', 'Surat Kepemilikan', 'D. Dokumen Supplier', false, 12],
-      ['12', 'Pakta Integritas', 'D. Dokumen Supplier', false, 13],
-      ['13', 'Laporan Keuangan', 'D. Dokumen Supplier', false, 14],
-      ['14a', 'FDNK', 'E. KYC', false, 15],
-      ['14b', 'Enhance Due Diligence (EDD)', 'E. KYC', false, 16],
-      ['14c', 'Legal Due Diligence', 'E. KYC', false, 17],
-      ['15a', 'Kajian Kepatuhan', 'F. Kajian', false, 18],
-      ['15b', 'Kajian Legal', 'F. Kajian', false, 19],
-      ['15c', 'Kajian MROK', 'F. Kajian', false, 20],
-      ['16', 'Rencana Bisnis', 'G. Lainnya', false, 21]
-    ];
-    sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
-    sh.autoResizeColumns(1, headers.length);
-    Logger.log('Sheet "ChecklistMasterDokumen" berhasil dibuat (21 baris master checklist).');
-  } else {
-    Logger.log('Sheet "ChecklistMasterDokumen" sudah ada, dilewati (tidak diubah).');
-  }
-
   if (!ss.getSheetByName('SupplierDocumentChecklist')) {
-    const sh2 = ss.insertSheet('SupplierDocumentChecklist');
-    const headers2 = [
+    const sh = ss.insertSheet('SupplierDocumentChecklist');
+    const headers = [
       'ID', 'SupplierNama', 'Kode', 'Status', 'TanggalDiterima',
       'TanggalBerlaku', 'Catatan', 'LinkDokumen', 'UpdatedAt', 'UpdatedBy'
     ];
-    sh2.getRange(1, 1, 1, headers2.length).setValues([headers2]);
-    formatHeader(sh2, headers2.length);
-    sh2.autoResizeColumns(1, headers2.length);
-    Logger.log('Sheet "SupplierDocumentChecklist" berhasil dibuat (KOSONG — isi lewat tombol Import dari Google Sheet di menu Monitoring Supplier PKS > Kelengkapan Dokumen).');
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    formatHeader(sh, headers.length);
+    sh.autoResizeColumns(1, headers.length);
+    Logger.log('Sheet "SupplierDocumentChecklist" berhasil dibuat (KOSONG — isi lewat importInitialSupplierDocumentData() sekali, lalu diedit langsung dari UI Detail Supplier).');
   } else {
-    Logger.log('Sheet "SupplierDocumentChecklist" sudah ada, dilewati (tidak diubah).');
+    Logger.log('Sheet "SupplierDocumentChecklist" sudah ada, dilewati (tidak diubah, tidak ditimpa).');
   }
 
-  Logger.log('=== Setup Kelengkapan Dokumen Supplier selesai. Sheet existing lain (Supplier, MITRA_*, dst) tidak disentuh sama sekali. ===');
+  Logger.log('=== Setup Kelengkapan Dokumen Supplier selesai. Sheet existing lain (Supplier, MITRA_*, Master_Customer, dst) tidak disentuh sama sekali. ===');
+}
+
+// ------------------------------------------------------------
+// MIGRASI AWAL (SEKALI JALAN) — bukan bagian dari flow operasional
+// aplikasi. Fungsi ini HANYA untuk memindahkan data checklist dari
+// file referensi "PEMENUHAN DOKUMEN SUPPLIER TRADING BULION" ke
+// sheet SupplierDocumentChecklist SATU KALI di awal. TIDAK ada
+// tombol/menu di UI yang memanggil fungsi ini — jalankan manual
+// dari dropdown fungsi di editor Apps Script (pilih
+// "importInitialSupplierDocumentData", klik Run) kalau diperlukan
+// migrasi ulang/debugging. Setelah migrasi, seluruh operasional
+// (baca & update status dokumen) memakai database Gold Trading
+// (SupplierDocumentChecklist) langsung — TIDAK bergantung ke file
+// Excel/spreadsheet referensi lagi.
+//
+// Tidak bergantung pada nama tab tertentu (ANTAM/AMMAN/dst) — sheet
+// APAPUN di spreadsheet sumber yang punya baris header mengandung
+// kata "Status" akan diproses, dan nama tab dipakai sebagai nama
+// supplier. Baris yang tidak match dengan checklist master dilaporkan
+// di Logger untuk diperiksa manual, TIDAK ditebak/dikarang.
+// ------------------------------------------------------------
+function importInitialSupplierDocumentData() {
+  requireRole('Admin');
+  const SOURCE_SPREADSHEET_ID = '1goQHUeWB-qTrN5hZ6uQE2w_YseDglAfGhBR5cwp78Qo'; // file referensi PEMENUHAN DOKUMEN SUPPLIER TRADING BULION
+
+  const sourceSs = SpreadsheetApp.openById(SOURCE_SPREADSHEET_ID);
+  const sheets = sourceSs.getSheets();
+  const user = getCurrentUser();
+  const now = new Date();
+
+  let itemsImported = 0;
+  const sheetsProcessed = [];
+  const sheetsSkipped = [];
+  const unmatchedRows = [];
+
+  sheets.forEach(sh => {
+    const supplierName = sh.getName().trim();
+    const values = sh.getDataRange().getValues();
+
+    let headerRowIdx = -1, colStatus = -1, colLabel = 0, colTerima = -1, colBerlaku = -1, colCatatan = -1, colLink = -1;
+    for (let r = 0; r < Math.min(15, values.length); r++) {
+      const rowText = values[r].map(c => normalizeChecklistText(c));
+      const idx = rowText.findIndex(c => c.indexOf('status') > -1);
+      if (idx > -1) {
+        headerRowIdx = r;
+        colStatus = idx;
+        rowText.forEach((c, ci) => {
+          if (c.indexOf('nama dokumen') > -1 || c === 'dokumen' || c.indexOf('checklist') > -1 || c.indexOf('item') > -1) colLabel = ci;
+          if (c.indexOf('terima') > -1) colTerima = ci;
+          if (c.indexOf('berlaku') > -1 || c.indexOf('expired') > -1 || c.indexOf('expiry') > -1) colBerlaku = ci;
+          if (c.indexOf('catatan') > -1 || c.indexOf('keterangan') > -1) colCatatan = ci;
+          if (c.indexOf('link') > -1 || c.indexOf('url') > -1) colLink = ci;
+        });
+        break;
+      }
+    }
+    if (headerRowIdx === -1) { sheetsSkipped.push(supplierName + ' (tidak ada header "Status" — dilewati)'); return; }
+
+    let importedFromThisSheet = 0;
+    for (let r = headerRowIdx + 1; r < values.length; r++) {
+      const row = values[r];
+      const label = row[colLabel];
+      if (!label || !String(label).trim()) continue;
+      const kode = matchChecklistCode(label);
+      if (!kode) { unmatchedRows.push({ supplier: supplierName, baris: r + 1, teks: String(label) }); continue; }
+
+      const rawStatus = row[colStatus];
+      const status = normalizeChecklistStatus(rawStatus);
+      const tanggalDiterima = colTerima > -1 ? row[colTerima] : '';
+      const tanggalBerlaku = colBerlaku > -1 ? row[colBerlaku] : '';
+      const catatan = colCatatan > -1 ? row[colCatatan] : '';
+      const linkDokumen = colLink > -1 ? row[colLink] : '';
+
+      saveSupplierDocumentChecklistItemInternal(supplierName, kode, status, tanggalDiterima, tanggalBerlaku, catatan, linkDokumen, now, user.Email);
+      itemsImported++;
+      importedFromThisSheet++;
+    }
+    if (importedFromThisSheet > 0) sheetsProcessed.push(supplierName + ' (' + importedFromThisSheet + ' item)');
+    else sheetsSkipped.push(supplierName + ' (0 item cocok)');
+  });
+
+  logAudit('IMPORT', 'SupplierDocumentChecklist', SOURCE_SPREADSHEET_ID, itemsImported + ' item diimpor dari ' + sheetsProcessed.length + ' sheet (migrasi awal).');
+
+  Logger.log('=== Migrasi Initial Supplier Document Data selesai ===');
+  Logger.log('Total item diimpor: ' + itemsImported);
+  Logger.log('Sheet diproses: ' + (sheetsProcessed.join(' | ') || '-'));
+  Logger.log('Sheet dilewati: ' + (sheetsSkipped.join(' | ') || '-'));
+  if (unmatchedRows.length) {
+    Logger.log('Baris tidak dikenali (isi manual lewat UI Detail Supplier):');
+    unmatchedRows.forEach(u => Logger.log('  ' + u.supplier + ' baris ' + u.baris + ': "' + u.teks + '"'));
+  }
+  return { itemsImported: itemsImported, sheetsProcessed: sheetsProcessed, sheetsSkipped: sheetsSkipped, unmatchedRows: unmatchedRows };
 }
