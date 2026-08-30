@@ -2951,6 +2951,13 @@
   let sdcLoadedOnce = false;
   let sdcCurrentSupplier = null;
   const SDC_LABEL_COLOR = { 'Lengkap': 'hijau', 'Dalam Proses': 'kuning', 'Belum Ada': 'merah', 'N/A': 'abu', 'Belum Diisi': 'abu' };
+  const SDC_STATUS_OPTIONS = [
+    { code: '', label: 'Belum Diisi' },
+    { code: 'LENGKAP', label: 'Lengkap' },
+    { code: 'PROSES', label: 'Dalam Proses' },
+    { code: 'BELUM_ADA', label: 'Belum Ada' },
+    { code: 'NA', label: 'N/A' }
+  ];
 
   function showMitraMainTab(tabId, el) {
     document.querySelectorAll('#mitra-maintab-btn-pks, #mitra-maintab-btn-checklist').forEach(function (b) { b.classList.remove('active'); });
@@ -2984,7 +2991,13 @@
         document.getElementById('sdc-kpi-missing').textContent = s.totalDokumenBelumDipenuhi;
         renderSupplierDocTable();
       })
-      .withFailureHandler(handleLoadError)
+      .withFailureHandler(function (err) {
+        handleLoadError(err);
+        if (body) body.innerHTML = '<tr><td colspan="10" class="recent-empty">Gagal memuat data. ' + sdcEscapeHtml(err.message || err) + '</td></tr>';
+        ['sdc-kpi-total', 'sdc-kpi-lengkap', 'sdc-kpi-belum', 'sdc-kpi-avg', 'sdc-kpi-missing'].forEach(function (id) {
+          document.getElementById(id).textContent = '-';
+        });
+      })
       .getSupplierDocumentMonitoring();
   }
 
@@ -3021,8 +3034,9 @@
     if (!rows.length) { body.innerHTML = '<tr><td colspan="10" class="recent-empty">Tidak ada supplier yang cocok dengan filter.</td></tr>'; return; }
 
     body.innerHTML = rows.map(function (r) {
+      const namaJs = sdcJsStringLiteral(r.supplierNama);
       return '<tr>' +
-        '<td><span class="sdc-supplier-link" onclick="openSupplierDocDetail(\'' + r.supplierNama + '\')">' + sdcEscapeHtml(r.supplierNama) + '</span></td>' +
+        '<td><span class="sdc-supplier-link" onclick="openSupplierDocDetail(' + namaJs + ')">' + sdcEscapeHtml(r.supplierNama) + '</span></td>' +
         '<td>' + sdcProgressBarHtml(r.percent, r.statusColor) + '</td>' +
         '<td>' + r.jumlahLengkap + '</td>' +
         '<td>' + r.jumlahProses + '</td>' +
@@ -3031,9 +3045,44 @@
         '<td><span class="sdc-badge ' + SDC_LABEL_COLOR[r.legalDD] + '">' + r.legalDD + '</span></td>' +
         '<td><span class="sdc-badge ' + SDC_LABEL_COLOR[r.kajian] + '">' + r.kajian + '</span></td>' +
         '<td><span class="sdc-badge ' + r.statusColor + '">' + r.status + '</span></td>' +
-        '<td><button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="openSupplierDocDetail(\'' + r.supplierNama + '\')">Detail</button></td>' +
+        '<td><button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="openSupplierDocDetail(' + namaJs + ')">Detail</button></td>' +
         '</tr>';
     }).join('');
+  }
+
+  /** Escape teks jadi literal string JS aman untuk disisipkan ke dalam atribut onclick="...('...')" (mencegah injeksi via nama supplier yang mengandung kutip/HTML). */
+  function sdcJsStringLiteral(s) {
+    return "'" + String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/</g, '\\x3c') + "'";
+  }
+
+  /** Hanya izinkan URL http(s) — cegah javascript: atau skema lain yang bisa dieksekusi. */
+  function sdcIsSafeUrl(url) {
+    if (!url) return false;
+    try {
+      const u = new URL(String(url).trim(), window.location.href);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** Format tanggal (ISO "yyyy-MM-dd" atau "yyyy-MM-ddTHH:mm:ss") jadi teks Indonesia, TANPA melalui new Date() (menghindari pergeseran timezone). */
+  function sdcFormatTanggalIndo(value) {
+    if (!value) return '-';
+    const iso = String(value).split('T')[0];
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return sdcEscapeHtml(String(value));
+    const bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const bulanIdx = parseInt(m[2], 10) - 1;
+    if (bulanIdx < 0 || bulanIdx > 11) return sdcEscapeHtml(iso);
+    return parseInt(m[3], 10) + ' ' + bulan[bulanIdx] + ' ' + m[1];
+  }
+
+  /** Ambil "yyyy-MM-dd" murni dari value backend, untuk dipasang sebagai value <input type="date">. */
+  function sdcToDateInputValue(value) {
+    if (!value) return '';
+    const m = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : '';
   }
 
   function sdcExpiryHtml(expiry) {
@@ -3046,8 +3095,15 @@
     sdcCurrentSupplier = nama;
     document.getElementById('sdc-detail-title').textContent = 'Detail Kelengkapan Dokumen — ' + nama;
     document.getElementById('sdc-detail-groups').innerHTML = '<div class="recent-empty">Memuat...</div>';
+    document.getElementById('sdc-gap-list').innerHTML = '';
     document.getElementById('sdc-detail-modal-overlay').style.display = 'flex';
-    google.script.run.withSuccessHandler(renderSupplierDocDetail).withFailureHandler(handleLoadError).getSupplierDocumentDetail(nama);
+    google.script.run
+      .withSuccessHandler(renderSupplierDocDetail)
+      .withFailureHandler(function (err) {
+        handleLoadError(err);
+        document.getElementById('sdc-detail-groups').innerHTML = '<div class="recent-empty">Gagal memuat detail. ' + sdcEscapeHtml(err.message || err) + '</div>';
+      })
+      .getSupplierDocumentDetail(nama);
   }
 
   function closeSupplierDocDetailModal() {
@@ -3080,33 +3136,59 @@
   }
 
   function sdcItemRowHtml(it) {
-    const linkBtn = it.linkDokumen
-      ? '<a href="' + sdcEscapeHtml(it.linkDokumen) + '" target="_blank" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">Lihat Dokumen</a>'
+    const hasSafeLink = sdcIsSafeUrl(it.linkDokumen);
+    const linkBtn = hasSafeLink
+      ? '<a href="' + sdcEscapeHtml(it.linkDokumen) + '" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">Lihat Dokumen</a>'
       : '';
+    const statusOptions = SDC_STATUS_OPTIONS.map(function (o) {
+      return '<option value="' + o.code + '"' + (it.status === o.code ? ' selected' : '') + '>' + o.label + '</option>';
+    }).join('');
+
     return '<div class="sdc-item-row">' +
-      '<input type="checkbox" class="sdc-item-check" ' + (it.checked ? 'checked' : '') + ' onchange="toggleSupplierDocItem(\'' + it.kode + '\', this.checked)">' +
-      '<div class="sdc-item-body">' +
+      '<div class="sdc-item-body" style="flex:1;">' +
       '<div class="sdc-item-name">' + it.statusIcon + ' ' + sdcEscapeHtml(it.nama) + ' <span class="sdc-badge ' + it.statusColor + '" style="margin-left:6px;">' + it.statusLabel + '</span></div>' +
-      '<div class="sdc-item-meta">' +
-      '<span>Diterima: ' + (it.tanggalDiterima ? sdcEscapeHtml(String(it.tanggalDiterima).split('T')[0]) : '-') + '</span>' +
-      '<span>Berlaku s.d.: ' + (it.tanggalBerlaku ? sdcEscapeHtml(String(it.tanggalBerlaku).split('T')[0]) : '-') + '</span>' +
+      '<div class="sdc-item-meta" style="margin-top:6px; align-items:center;">' +
+      '<select class="date-picker-input" style="padding:4px 6px; font-size:12px; width:auto;" onchange="sdcSaveField(\'' + it.kode + '\', \'status\', this.value)">' + statusOptions + '</select>' +
+      '<label style="display:flex; align-items:center; gap:4px;">Diterima: <input type="date" class="date-picker-input" style="padding:3px 5px; font-size:12px; width:auto;" value="' + sdcToDateInputValue(it.tanggalDiterima) + '" onchange="sdcSaveField(\'' + it.kode + '\', \'tanggalDiterima\', this.value)"> <span style="color:var(--color-text-muted);">(' + sdcFormatTanggalIndo(it.tanggalDiterima) + ')</span></label>' +
+      '<label style="display:flex; align-items:center; gap:4px;">Berlaku s.d.: <input type="date" class="date-picker-input" style="padding:3px 5px; font-size:12px; width:auto;" value="' + sdcToDateInputValue(it.tanggalBerlaku) + '" onchange="sdcSaveField(\'' + it.kode + '\', \'tanggalBerlaku\', this.value)"> <span style="color:var(--color-text-muted);">(' + sdcFormatTanggalIndo(it.tanggalBerlaku) + ')</span></label>' +
       (it.expiry ? '<span>' + sdcExpiryHtml(it.expiry) + '</span>' : '') +
       '</div>' +
-      (it.catatan ? '<div class="sdc-item-note">Catatan: ' + sdcEscapeHtml(it.catatan) + '</div>' : '') +
+      '<div class="sdc-item-meta" style="margin-top:6px;">' +
+      '<input type="text" class="date-picker-input" style="padding:3px 6px; font-size:12px; flex:1; min-width:160px;" placeholder="Catatan" value="' + sdcEscapeHtml(it.catatan) + '" onblur="sdcSaveField(\'' + it.kode + '\', \'catatan\', this.value)">' +
+      '<input type="text" class="date-picker-input" style="padding:3px 6px; font-size:12px; flex:1; min-width:200px;" placeholder="Link dokumen (https://...)" value="' + sdcEscapeHtml(it.linkDokumen) + '" onblur="sdcSaveField(\'' + it.kode + '\', \'linkDokumen\', this.value)">' +
+      '</div>' +
+      (it.linkDokumen && !hasSafeLink ? '<div class="sdc-item-note" style="color:var(--color-danger);">Link dokumen tidak valid (harus diawali http:// atau https://).</div>' : '') +
       '</div>' +
       '<div class="sdc-item-actions">' + linkBtn + '</div>' +
       '</div>';
   }
 
-  function toggleSupplierDocItem(kode, checked) {
+  /**
+   * Simpan satu field checklist (status/tanggal/catatan/link) langsung
+   * ke database saat user mengubah input — tanpa perlu import ulang.
+   * Setelah tersimpan, detail & tabel di-refresh supaya progress ikut
+   * terupdate (mis. ubah status langsung mengubah persentase).
+   */
+  function sdcSaveField(kode, field, value) {
     if (!sdcCurrentSupplier) return;
+    if (field === 'linkDokumen' && value && !sdcIsSafeUrl(value)) {
+      showToast('Link dokumen harus berupa URL http:// atau https://', 'warning');
+      openSupplierDocDetail(sdcCurrentSupplier);
+      return;
+    }
+    const payload = { supplierNama: sdcCurrentSupplier, kode: kode };
+    payload[field] = value;
     google.script.run
       .withSuccessHandler(function () {
+        showToast('Tersimpan', 'success');
         openSupplierDocDetail(sdcCurrentSupplier);
         loadSupplierDocMonitoring();
       })
-      .withFailureHandler(function (err) { handleLoadError(err); openSupplierDocDetail(sdcCurrentSupplier); })
-      .saveSupplierDocumentChecklistItem({ supplierNama: sdcCurrentSupplier, kode: kode, status: checked ? 'LENGKAP' : 'BELUM_ADA' });
+      .withFailureHandler(function (err) {
+        handleLoadError(err);
+        openSupplierDocDetail(sdcCurrentSupplier);
+      })
+      .saveSupplierDocumentChecklistItem(payload);
   }
 
 </script>

@@ -4187,7 +4187,7 @@ function computeExpiryStatus(tanggalBerlaku) {
  * dipersyaratkan tapi belum ada datanya) tapi TIDAK dihitung lengkap.
  */
 function computeSupplierDocProgress(namaSupplier, rowsBySupplier) {
-  const rows = rowsBySupplier[namaSupplier] || {};
+  const rows = rowsBySupplier[normalizeSupplierKey(namaSupplier)] || {};
   const byKode = {};
   let lengkap = 0, proses = 0, belumAda = 0, kosong = 0, totalRequired = 0;
   CHECKLIST_MASTER_DOKUMEN.forEach(m => {
@@ -4208,14 +4208,40 @@ function computeSupplierDocProgress(namaSupplier, rowsBySupplier) {
   };
 }
 
-/** Baca SupplierDocumentChecklist SEKALI (batch), kelompokkan per nama supplier di memori. */
+/**
+ * Normalisasi nama supplier untuk keperluan pencocokan/key SAJA
+ * (trim + lowercase) — TIDAK dipakai untuk display. Mencegah
+ * "PT ANTAM" dan "pt antam" dianggap dua supplier berbeda saat
+ * data ditulis dari sumber berbeda (migrasi awal vs input manual vs
+ * Master Supplier) dengan variasi kapitalisasi/spasi.
+ */
+function normalizeSupplierKey(nama) {
+  return String(nama || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * Pesan error yang jelas kalau sheet SupplierDocumentChecklist belum
+ * dibuat (belum jalankan addSupplierDocumentChecklistModule()) —
+ * supaya user tidak melihat raw error "Sheet ... tidak ditemukan."
+ */
+function requireSupplierDocChecklistSheet() {
+  try {
+    return getSheet(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
+  } catch (e) {
+    throw new Error('Modul Kelengkapan Dokumen belum diinisialisasi. Jalankan addSupplierDocumentChecklistModule() dari Apps Script Editor terlebih dahulu.');
+  }
+}
+
+/** Baca SupplierDocumentChecklist SEKALI (batch), kelompokkan per nama supplier (key dinormalisasi) di memori. */
 function groupSupplierDocRowsBySupplier() {
+  requireSupplierDocChecklistSheet();
   const rows = sheetToObjects(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
   const grouped = {};
   rows.forEach(r => {
     if (!r.SupplierNama) return;
-    if (!grouped[r.SupplierNama]) grouped[r.SupplierNama] = {};
-    grouped[r.SupplierNama][r.Kode] = r;
+    const key = normalizeSupplierKey(r.SupplierNama);
+    if (!grouped[key]) grouped[key] = {};
+    grouped[key][r.Kode] = r;
   });
   return grouped;
 }
@@ -4296,7 +4322,7 @@ function getSupplierDocumentMonitoring() {
  */
 function getSupplierDocumentDetail(namaSupplier) {
   const rowsBySupplier = groupSupplierDocRowsBySupplier();
-  const rows = rowsBySupplier[namaSupplier] || {};
+  const rows = rowsBySupplier[normalizeSupplierKey(namaSupplier)] || {};
   const progress = computeSupplierDocProgress(namaSupplier, rowsBySupplier);
 
   const groups = CHECKLIST_CATEGORY_ORDER.map(kategori => ({ kategori: kategori, items: [] }));
@@ -4370,9 +4396,31 @@ function normalizeChecklistText(s) {
 
 const CHECKLIST_MATCH_STOPWORDS = ['dan', 'atau', 'yang', 'untuk', 'dari', 'perusahaan', 'berikut', 'terakhir', 'masih', 'berlaku', 'mengenai', 'the', 'of'];
 
-/** Cocokkan teks satu baris di sheet sumber ke salah satu kode master checklist (fuzzy, berbasis token). Dipakai HANYA oleh migrasi awal (Setup.gs). */
+/**
+ * Cocokkan teks satu baris di sheet sumber ke salah satu kode master
+ * checklist. Dipakai HANYA oleh migrasi awal (Setup.gs). Dua strategi,
+ * dicoba berurutan (biar robust untuk format checklist bernomor
+ * MAUPUN checklist yang cuma berisi nama dokumen tanpa nomor):
+ *  1) Match langsung by nomor/kode di awal teks (mis. "9a.", "14b)",
+ *     "1 -", "16.") — paling akurat kalau sumbernya checklist bernomor
+ *     persis seperti master (paling umum untuk file Excel checklist).
+ *  2) Fallback fuzzy token-overlap ATAU containment substring (match
+ *     kalau salah satu teks memuat penuh teks lainnya — PENTING untuk
+ *     nama pendek seperti "SNI"/"NIB"/"FDNK" yang sebelumnya gagal
+ *     ke-match karena rasio token terlalu ketat).
+ */
 function matchChecklistCode(rowLabel) {
-  const rowNorm = normalizeChecklistText(rowLabel);
+  const raw = String(rowLabel == null ? '' : rowLabel).trim();
+  if (!raw) return null;
+
+  const prefixMatch = raw.match(/^(\d{1,2}[a-c]?)\s*[.\)\-:]/i);
+  if (prefixMatch) {
+    const kodeCandidate = prefixMatch[1].toLowerCase();
+    const foundByPrefix = CHECKLIST_MASTER_DOKUMEN.find(m => m.kode.toLowerCase() === kodeCandidate);
+    if (foundByPrefix) return foundByPrefix.kode;
+  }
+
+  const rowNorm = normalizeChecklistText(raw);
   if (!rowNorm) return null;
   const rowTokens = rowNorm.split(' ').filter(t => t.length > 2 && CHECKLIST_MATCH_STOPWORDS.indexOf(t) === -1);
   let best = null, bestScore = 0;
@@ -4383,18 +4431,68 @@ function matchChecklistCode(rowLabel) {
     let score = 0;
     mTokens.forEach(t => { if (rowTokens.indexOf(t) > -1) score++; });
     const ratio = score / mTokens.length;
-    const containment = rowNorm.indexOf(mNorm) > -1 || mNorm.indexOf(rowNorm) > -1;
+    const containment = (mNorm.length > 2) && (rowNorm.indexOf(mNorm) > -1 || mNorm.indexOf(rowNorm) > -1);
     const finalScore = containment ? score + 1 : score;
-    if (ratio >= 0.6 && finalScore > bestScore) { bestScore = finalScore; best = m; }
+    if ((ratio >= 0.6 || containment) && finalScore > bestScore) { bestScore = finalScore; best = m; }
   });
   return best ? best.kode : null;
 }
 
-/** Upsert satu baris checklist. Dipakai oleh save manual (UI) maupun migrasi awal (Setup.gs). */
+/**
+ * Fallback untuk sheet sumber yang TIDAK punya header teks "Status"
+ * sama sekali (checklist vertikal murni: kolom nama dokumen + kolom
+ * centang TRUE/FALSE tanpa judul kolom yang jelas). Cari kolom yang
+ * berisi banyak nilai boolean asli (bukan teks) — itu kemungkinan
+ * besar kolom status. Dipakai HANYA oleh migrasi awal (Setup.gs).
+ */
+function detectBooleanStatusColumn(values) {
+  const numCols = values.length ? values[0].length : 0;
+  let bestCol = -1, bestCount = 0;
+  for (let c = 0; c < numCols; c++) {
+    let count = 0;
+    for (let r = 0; r < values.length; r++) {
+      if (typeof values[r][c] === 'boolean') count++;
+    }
+    if (count > bestCount) { bestCount = count; bestCol = c; }
+  }
+  return bestCount >= 3 ? bestCol : -1;
+}
+
+/**
+ * Tebak kolom nama dokumen (dipakai kalau header tidak menyebut
+ * "Dokumen"/"Item"/"Checklist" secara eksplisit): pilih kolom (selain
+ * kolom yang sudah dipakai) dengan jumlah teks panjang (>4 karakter)
+ * terbanyak — kolom nomor urut/index biasanya pendek, kolom nama
+ * dokumen biasanya berisi kalimat. Dipakai HANYA oleh migrasi awal.
+ */
+function guessLabelColumn(values, excludeCols) {
+  const numCols = values.length ? values[0].length : 0;
+  let bestCol = 0, bestScore = -1;
+  for (let c = 0; c < numCols; c++) {
+    if (excludeCols.indexOf(c) > -1) continue;
+    let score = 0;
+    for (let r = 0; r < values.length; r++) {
+      const v = values[r][c];
+      if (typeof v === 'string' && v.trim().length > 4) score++;
+    }
+    if (score > bestScore) { bestScore = score; bestCol = c; }
+  }
+  return bestCol;
+}
+
+/**
+ * Upsert satu baris checklist. Dipakai oleh save manual (UI) maupun
+ * migrasi awal (Setup.gs). Key pencarian existing row = SupplierNama
+ * (dinormalisasi trim+lowercase) + Kode (trim+lowercase) — supaya
+ * "PT ANTAM" dan "pt antam", atau menjalankan migrasi dua kali,
+ * TIDAK menghasilkan baris duplikat.
+ */
 function saveSupplierDocumentChecklistItemInternal(nama, kode, status, tanggalDiterima, tanggalBerlaku, catatan, linkDokumen, timestamp, userEmail) {
-  const sheet = getSheet(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
+  const sheet = requireSupplierDocChecklistSheet();
   const rows = sheetToObjects(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
-  const existing = rows.find(r => r.SupplierNama === nama && r.Kode === kode);
+  const namaKey = normalizeSupplierKey(nama);
+  const kodeKey = String(kode || '').trim().toLowerCase();
+  const existing = rows.find(r => normalizeSupplierKey(r.SupplierNama) === namaKey && String(r.Kode || '').trim().toLowerCase() === kodeKey);
   const updates = {
     Status: status !== undefined ? status : (existing ? existing.Status : ''),
     TanggalDiterima: tanggalDiterima !== undefined ? (tanggalDiterima || '') : (existing ? existing.TanggalDiterima : ''),

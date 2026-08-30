@@ -454,10 +454,20 @@ function addSupplierDocumentChecklistModule() {
 // Excel/spreadsheet referensi lagi.
 //
 // Tidak bergantung pada nama tab tertentu (ANTAM/AMMAN/dst) — sheet
-// APAPUN di spreadsheet sumber yang punya baris header mengandung
-// kata "Status" akan diproses, dan nama tab dipakai sebagai nama
-// supplier. Baris yang tidak match dengan checklist master dilaporkan
-// di Logger untuk diperiksa manual, TIDAK ditebak/dikarang.
+// APAPUN di spreadsheet sumber diproses. Deteksi kolom status 2 tahap:
+// (1) cari baris header yang mengandung kata status/kelengkapan/
+//     ada-tidak/ceklis — format ini yang paling umum untuk tabel
+//     checklist dengan header eksplisit;
+// (2) kalau tidak ketemu (checklist vertikal murni tanpa header
+//     jelas), fallback cari kolom yang isinya banyak nilai boolean
+//     TRUE/FALSE asli (bukan teks) — itu kolom statusnya, dan kolom
+//     nama dokumen ditebak dari kolom bertisi teks terpanjang.
+// Nama tab dipakai sebagai nama supplier, lalu di-cross-check ke
+// Master Supplier (getSupplierMitraNames) — kalau tidak ada yang
+// cocok (beda ejaan/kapitalisasi jauh), dilaporkan sebagai peringatan
+// supaya diperiksa manual, BUKAN dipaksa cocok. Baris checklist yang
+// tidak match ke checklist master juga dilaporkan sebagai unmatched,
+// TIDAK ditebak/dikarang statusnya.
 // ------------------------------------------------------------
 function importInitialSupplierDocumentData() {
   requireRole('Admin');
@@ -476,16 +486,21 @@ function importInitialSupplierDocumentData() {
   sheets.forEach(sh => {
     const supplierName = sh.getName().trim();
     const values = sh.getDataRange().getValues();
+    if (!values.length) { sheetsSkipped.push(supplierName + ' (sheet kosong)'); return; }
 
-    let headerRowIdx = -1, colStatus = -1, colLabel = 0, colTerima = -1, colBerlaku = -1, colCatatan = -1, colLink = -1;
-    for (let r = 0; r < Math.min(15, values.length); r++) {
+    let headerRowIdx = -1, colStatus = -1, colLabel = -1, colTerima = -1, colBerlaku = -1, colCatatan = -1, colLink = -1;
+
+    // Tahap 1: cari baris header berbasis kata kunci.
+    for (let r = 0; r < Math.min(20, values.length); r++) {
       const rowText = values[r].map(c => normalizeChecklistText(c));
-      const idx = rowText.findIndex(c => c.indexOf('status') > -1);
+      const idx = rowText.findIndex(c =>
+        c.indexOf('status') > -1 || c.indexOf('kelengkapan') > -1 ||
+        c.indexOf('ada tidak') > -1 || c.indexOf('ceklis') > -1 || c === 'checklist');
       if (idx > -1) {
         headerRowIdx = r;
         colStatus = idx;
         rowText.forEach((c, ci) => {
-          if (c.indexOf('nama dokumen') > -1 || c === 'dokumen' || c.indexOf('checklist') > -1 || c.indexOf('item') > -1) colLabel = ci;
+          if (c.indexOf('nama dokumen') > -1 || c.indexOf('dokumen') > -1 || c.indexOf('checklist') > -1 || c.indexOf('item') > -1 || c.indexOf('keterangan dokumen') > -1) colLabel = ci;
           if (c.indexOf('terima') > -1) colTerima = ci;
           if (c.indexOf('berlaku') > -1 || c.indexOf('expired') > -1 || c.indexOf('expiry') > -1) colBerlaku = ci;
           if (c.indexOf('catatan') > -1 || c.indexOf('keterangan') > -1) colCatatan = ci;
@@ -494,10 +509,22 @@ function importInitialSupplierDocumentData() {
         break;
       }
     }
-    if (headerRowIdx === -1) { sheetsSkipped.push(supplierName + ' (tidak ada header "Status" — dilewati)'); return; }
+
+    let dataStartRow;
+    if (headerRowIdx > -1) {
+      dataStartRow = headerRowIdx + 1;
+      if (colLabel === -1) colLabel = guessLabelColumn(values, [colStatus, colTerima, colBerlaku, colCatatan, colLink]);
+    } else {
+      // Tahap 2 (fallback): checklist vertikal tanpa header teks jelas —
+      // cari kolom boolean TRUE/FALSE asli.
+      colStatus = detectBooleanStatusColumn(values);
+      if (colStatus === -1) { sheetsSkipped.push(supplierName + ' (tidak ditemukan kolom status/kelengkapan maupun kolom boolean — dilewati, TIDAK ditebak)'); return; }
+      colLabel = guessLabelColumn(values, [colStatus]);
+      dataStartRow = 0; // baris header (kalau ada) otomatis gagal match & masuk unmatchedRows, tidak korup data
+    }
 
     let importedFromThisSheet = 0;
-    for (let r = headerRowIdx + 1; r < values.length; r++) {
+    for (let r = dataStartRow; r < values.length; r++) {
       const row = values[r];
       const label = row[colLabel];
       if (!label || !String(label).trim()) continue;
@@ -519,6 +546,16 @@ function importInitialSupplierDocumentData() {
     else sheetsSkipped.push(supplierName + ' (0 item cocok)');
   });
 
+  // Cross-check: nama tab yang berhasil diimpor tapi TIDAK ketemu
+  // (exact, case-insensitive) di Master Supplier saat ini — supaya
+  // ketidakcocokan nama (bukan cuma ketidakcocokan header) juga
+  // kelihatan sebelum go-live, bukan baru ketahuan setelah user
+  // bingung kenapa progress supplier itu 0%.
+  const liveSupplierKeys = getSupplierMitraNames().map(n => normalizeSupplierKey(n));
+  const nameMismatch = sheetsProcessed
+    .map(s => s.replace(/\s*\(\d+ item\)$/, ''))
+    .filter(nama => liveSupplierKeys.indexOf(normalizeSupplierKey(nama)) === -1);
+
   logAudit('IMPORT', 'SupplierDocumentChecklist', SOURCE_SPREADSHEET_ID, itemsImported + ' item diimpor dari ' + sheetsProcessed.length + ' sheet (migrasi awal).');
 
   Logger.log('=== Migrasi Initial Supplier Document Data selesai ===');
@@ -529,5 +566,11 @@ function importInitialSupplierDocumentData() {
     Logger.log('Baris tidak dikenali (isi manual lewat UI Detail Supplier):');
     unmatchedRows.forEach(u => Logger.log('  ' + u.supplier + ' baris ' + u.baris + ': "' + u.teks + '"'));
   }
-  return { itemsImported: itemsImported, sheetsProcessed: sheetsProcessed, sheetsSkipped: sheetsSkipped, unmatchedRows: unmatchedRows };
+  if (nameMismatch.length) {
+    Logger.log('PERINGATAN — nama tab berikut TIDAK ditemukan persis di Master Supplier (getMitraList) saat ini, cek manual (kemungkinan beda ejaan/nama resmi):');
+    nameMismatch.forEach(n => Logger.log('  "' + n + '" — periksa nama di Master_Customer/MITRA_PROFILE.'));
+  } else {
+    Logger.log('Semua nama tab yang diimpor cocok dengan Master Supplier saat ini.');
+  }
+  return { itemsImported: itemsImported, sheetsProcessed: sheetsProcessed, sheetsSkipped: sheetsSkipped, unmatchedRows: unmatchedRows, nameMismatch: nameMismatch };
 }
