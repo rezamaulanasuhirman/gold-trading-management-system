@@ -405,3 +405,77 @@ function addPenetapanHargaBobotModule() {
 
   Logger.log('=== Setup Penetapan Harga (Bobot Supplier) selesai. Sheet existing lain tidak disentuh sama sekali. ===');
 }
+
+// ------------------------------------------------------------
+// MODUL KELENGKAPAN DOKUMEN SUPPLIER TRADING BULION
+// Enhancement pada Monitoring Supplier PKS (halaman Profile Mitra,
+// tab baru "Kelengkapan Dokumen"). Jalankan SEKALI dari editor
+// ("addSupplierDocumentChecklistModule"). Membuat 2 sheet BARU di
+// database yang sama (mengikuti pola setupMitraSheets/addPenetapan
+// HargaBobotModule — cek getSheetByName dulu, TIDAK PERNAH menimpa
+// sheet lain): ChecklistMasterDokumen (referensi tetap, 24 baris
+// sesuai daftar checklist) dan SupplierDocumentChecklist (KOSONG —
+// tidak diisi TRUE/FALSE apapun di sini; data asli diisi lewat
+// tombol "Import dari Google Sheet" di UI, yang membaca spreadsheet
+// sumber PEMENUHAN DOKUMEN SUPPLIER TRADING BULION dengan otorisasi
+// Google akun yang menjalankan Web App).
+// ------------------------------------------------------------
+function addSupplierDocumentChecklistModule() {
+  const id = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID');
+  if (!id) throw new Error('DB_SPREADSHEET_ID belum diset — jalankan setupDatabase() dulu.');
+  const ss = SpreadsheetApp.openById(id);
+
+  if (!ss.getSheetByName('ChecklistMasterDokumen')) {
+    const sh = ss.insertSheet('ChecklistMasterDokumen');
+    const headers = ['Kode', 'NamaDokumen', 'Kategori', 'IsHeader', 'Urutan'];
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    formatHeader(sh, headers.length);
+
+    // Master checklist PERSIS sesuai daftar yang diberikan — data
+    // referensi tetap (bukan data transaksi supplier), bukan dummy data.
+    const rows = [
+      ['1', 'KTP Direktur Utama Perusahaan', 'A. Identitas', false, 1],
+      ['2', 'NPWP Direktur Utama Perusahaan', 'A. Identitas', false, 2],
+      ['3', 'KTP Penanggung Jawab Transaksi', 'A. Identitas', false, 3],
+      ['4', 'NPWP Penanggung Jawab Transaksi', 'A. Identitas', false, 4],
+      ['5', 'NPWP Perusahaan', 'A. Identitas', false, 5],
+      ['6', 'Surat Pengukuhan Pengusaha Kena Pajak (SPPKP)', 'B. Pajak & Perizinan', false, 6],
+      ['7', 'Surat Keterangan Terdaftar (Pajak)', 'B. Pajak & Perizinan', false, 7],
+      ['8', 'Nomor Induk Berusaha (NIB)', 'B. Pajak & Perizinan', false, 8],
+      ['9a', 'Akta Pendirian Perusahaan + SK MenKumHam', 'C. Anggaran Dasar', false, 9],
+      ['9b', 'Akta Perubahan/Pengurus Terbaru + SK MenKumHam', 'C. Anggaran Dasar', false, 10],
+      ['10', 'Sertifikat SNI', 'D. Dokumen Supplier', false, 11],
+      ['11', 'Surat Kepemilikan', 'D. Dokumen Supplier', false, 12],
+      ['12', 'Pakta Integritas', 'D. Dokumen Supplier', false, 13],
+      ['13', 'Laporan Keuangan', 'D. Dokumen Supplier', false, 14],
+      ['14a', 'FDNK', 'E. KYC', false, 15],
+      ['14b', 'Enhance Due Diligence (EDD)', 'E. KYC', false, 16],
+      ['14c', 'Legal Due Diligence', 'E. KYC', false, 17],
+      ['15a', 'Kajian Kepatuhan', 'F. Kajian', false, 18],
+      ['15b', 'Kajian Legal', 'F. Kajian', false, 19],
+      ['15c', 'Kajian MROK', 'F. Kajian', false, 20],
+      ['16', 'Rencana Bisnis', 'G. Lainnya', false, 21]
+    ];
+    sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    sh.autoResizeColumns(1, headers.length);
+    Logger.log('Sheet "ChecklistMasterDokumen" berhasil dibuat (21 baris master checklist).');
+  } else {
+    Logger.log('Sheet "ChecklistMasterDokumen" sudah ada, dilewati (tidak diubah).');
+  }
+
+  if (!ss.getSheetByName('SupplierDocumentChecklist')) {
+    const sh2 = ss.insertSheet('SupplierDocumentChecklist');
+    const headers2 = [
+      'ID', 'SupplierNama', 'Kode', 'Status', 'TanggalDiterima',
+      'TanggalBerlaku', 'Catatan', 'LinkDokumen', 'UpdatedAt', 'UpdatedBy'
+    ];
+    sh2.getRange(1, 1, 1, headers2.length).setValues([headers2]);
+    formatHeader(sh2, headers2.length);
+    sh2.autoResizeColumns(1, headers2.length);
+    Logger.log('Sheet "SupplierDocumentChecklist" berhasil dibuat (KOSONG — isi lewat tombol Import dari Google Sheet di menu Monitoring Supplier PKS > Kelengkapan Dokumen).');
+  } else {
+    Logger.log('Sheet "SupplierDocumentChecklist" sudah ada, dilewati (tidak diubah).');
+  }
+
+  Logger.log('=== Setup Kelengkapan Dokumen Supplier selesai. Sheet existing lain (Supplier, MITRA_*, dst) tidak disentuh sama sekali. ===');
+}

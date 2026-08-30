@@ -39,8 +39,16 @@ const SHEET_NAMES = {
   MITRA_PKS_DOCUMENTS: 'MITRA_PKS_DOCUMENTS',
   MITRA_COMPANY_VISIT: 'MITRA_COMPANY_VISIT',
   BOBOT: 'BobotSupplier',
-  PENETAPAN_BOBOT: 'PenetapanHargaBobot'
+  PENETAPAN_BOBOT: 'PenetapanHargaBobot',
+  CHECKLIST_MASTER: 'ChecklistMasterDokumen',
+  SUPPLIER_DOC_CHECKLIST: 'SupplierDocumentChecklist'
 };
+
+// Daftar supplier Trading Bulion yang dipantau kelengkapan dokumennya —
+// PERSIS sesuai daftar yang diberikan (bukan hasil tebakan).
+const SUPPLIER_TRADING_BULION_LIST = [
+  'ANTAM', 'AMMAN', 'WARIS', 'IDN', 'HRTA', 'SJL', 'IGS', 'MKB', 'LOTUS', 'LMN'
+];
 
 const ROLE_LEVEL = { Viewer: 1, Supervisor: 2, Admin: 3 };
 
@@ -4043,6 +4051,407 @@ function archiveMitraDocument(docId) {
   sheet.getRange(idx + 2, statusCol).setValue('Diarsipkan');
   logAudit('ARCHIVE', 'MitraDocument', docId, 'Dokumen diarsipkan');
   return { archived: true };
+}
+// ------------------------------------------------------------
+// KELENGKAPAN DOKUMEN SUPPLIER TRADING BULION
+// Enhancement pada Monitoring Supplier PKS (tab "Kelengkapan
+// Dokumen" di halaman Profile Mitra). Sheet: ChecklistMasterDokumen
+// (referensi tetap, dibuat oleh addSupplierDocumentChecklistModule()
+// di Setup.gs) dan SupplierDocumentChecklist (transaksional).
+// Pola akses SAMA PERSIS dengan modul lain: getSheet()/sheetToObjects()
+// (satu batch getDataRange().getValues() per sheet per request),
+// TIDAK ada koneksi/caching baru yang ditambahkan. Tidak ada status
+// TRUE/FALSE yang di-hardcode — data hanya berasal dari sheet
+// SupplierDocumentChecklist, diisi lewat importSupplierDocumentChecklistFromSheet()
+// (baca spreadsheet sumber ASLI, jalan dengan otorisasi Google user
+// yang menjalankan Web App) atau input manual di UI.
+// ------------------------------------------------------------
+
+// Spreadsheet referensi "PEMENUHAN DOKUMEN SUPPLIER TRADING BULION"
+// yang diberikan user — dipakai sebagai default di modal Import,
+// TIDAK dibaca dari sini (Claude environment), hanya dipakai sebagai
+// default value saat Web App yang menjalankan importSupplierDocumentChecklistFromSheet().
+const SUPPLIER_DOC_CHECKLIST_DEFAULT_SOURCE_ID = '1goQHUeWB-qTrN5hZ6uQE2w_YseDglAfGhBR5cwp78Qo';
+
+const DOC_STATUS = {
+  LENGKAP: 'LENGKAP',
+  BELUM_ADA: 'BELUM_ADA',
+  PROSES: 'PROSES',
+  NA: 'NA',
+  KOSONG: '' // belum ada data sama sekali — TIDAK sama dengan BELUM_ADA
+};
+
+/**
+ * Normalisasi nilai mentah (dari sheet, bisa boolean TRUE/FALSE,
+ * teks, atau kosong) menjadi salah satu kode DOC_STATUS. Kosong/
+ * null TETAP dikembalikan sebagai '' (bukan otomatis BELUM_ADA) —
+ * sesuai requirement, blank tidak dianggap otomatis "Belum Ada".
+ */
+function normalizeChecklistStatus(raw) {
+  if (raw === true) return DOC_STATUS.LENGKAP;
+  if (raw === false) return DOC_STATUS.BELUM_ADA;
+  const str = String(raw == null ? '' : raw).trim().toLowerCase();
+  if (str === '') return DOC_STATUS.KOSONG;
+  if (str === 'true') return DOC_STATUS.LENGKAP;
+  if (str === 'false') return DOC_STATUS.BELUM_ADA;
+  if (['na', 'n/a', 'tidak dipersyaratkan', 'tidak berlaku', '-'].indexOf(str) > -1) return DOC_STATUS.NA;
+  if (str.indexOf('proses') > -1) return DOC_STATUS.PROSES;
+  if (['lengkap', 'ada', 'ya', 'sudah', 'sudah ada', 'complete', 'done'].indexOf(str) > -1) return DOC_STATUS.LENGKAP;
+  if (['belum', 'belum ada', 'tidak ada', 'kosong', 'no'].indexOf(str) > -1) return DOC_STATUS.BELUM_ADA;
+  return DOC_STATUS.KOSONG;
+}
+
+function checklistStatusMeta(status) {
+  switch (status) {
+    case DOC_STATUS.LENGKAP: return { label: 'Lengkap', icon: '✅', color: 'hijau' };
+    case DOC_STATUS.BELUM_ADA: return { label: 'Belum Ada', icon: '❌', color: 'merah' };
+    case DOC_STATUS.PROSES: return { label: 'Dalam Proses', icon: '🟡', color: 'kuning' };
+    case DOC_STATUS.NA: return { label: 'N/A', icon: '⚪', color: 'abu' };
+    default: return { label: 'Belum Diisi', icon: '⚪', color: 'abu' };
+  }
+}
+
+/** Gabungan status beberapa item (dipakai untuk kolom "Kajian" — agregat 15a/15b/15c). */
+function aggregateChecklistStatus(statuses) {
+  const real = statuses.filter(s => s !== DOC_STATUS.NA);
+  if (real.length === 0) return DOC_STATUS.NA;
+  if (real.every(s => s === DOC_STATUS.LENGKAP)) return DOC_STATUS.LENGKAP;
+  if (real.some(s => s === DOC_STATUS.BELUM_ADA)) return DOC_STATUS.BELUM_ADA;
+  if (real.some(s => s === DOC_STATUS.PROSES)) return DOC_STATUS.PROSES;
+  return DOC_STATUS.KOSONG;
+}
+
+function getChecklistMasterDokumen() {
+  return sheetToObjects(SHEET_NAMES.CHECKLIST_MASTER)
+    .sort((a, b) => Number(a.Urutan) - Number(b.Urutan));
+}
+
+/** Hijau = masih berlaku, Kuning = <=30 hari, Merah = expired, null = tidak ada tanggal (tidak dikarang). */
+function computeExpiryStatus(tanggalBerlaku) {
+  const iso = extractDateOnly(tanggalBerlaku);
+  if (!iso) return null;
+  const today = new Date(formatDateOnly(new Date()) + 'T00:00:00').getTime();
+  const expiry = new Date(iso + 'T00:00:00').getTime();
+  const sisaHari = Math.round((expiry - today) / 86400000);
+  if (sisaHari < 0) return { color: 'merah', label: 'Expired', sisaHari: sisaHari };
+  if (sisaHari <= 30) return { color: 'kuning', label: 'Akan Expired', sisaHari: sisaHari };
+  return { color: 'hijau', label: 'Masih Berlaku', sisaHari: sisaHari };
+}
+
+/**
+ * Progress satu supplier: { lengkap, proses, belumAda, totalRequired, percent, byKode }.
+ * Item header (IsHeader) tidak dihitung. Item berstatus NA tidak
+ * masuk denominator. Item kosong/blank MASUK denominator (dianggap
+ * dipersyaratkan tapi belum ada datanya) tapi TIDAK dihitung lengkap
+ * — tidak disamakan dengan status "Belum Ada" eksplisit di tampilan,
+ * hanya untuk keperluan hitung persentase.
+ */
+function computeSupplierDocProgress(namaSupplier, masterItems, rowsBySupplier) {
+  const rows = rowsBySupplier[namaSupplier] || {};
+  const byKode = {};
+  let lengkap = 0, proses = 0, belumAda = 0, kosong = 0, totalRequired = 0;
+  masterItems.forEach(m => {
+    if (m.IsHeader === true || m.IsHeader === 'TRUE') return;
+    const raw = rows[m.Kode] ? rows[m.Kode].Status : '';
+    const status = normalizeChecklistStatus(raw);
+    byKode[m.Kode] = Object.assign({ status: status }, rows[m.Kode] || {});
+    if (status === DOC_STATUS.NA) return;
+    totalRequired++;
+    if (status === DOC_STATUS.LENGKAP) lengkap++;
+    else if (status === DOC_STATUS.PROSES) proses++;
+    else if (status === DOC_STATUS.BELUM_ADA) belumAda++;
+    else kosong++;
+  });
+  const percent = totalRequired ? Math.round((lengkap / totalRequired) * 100) : 0;
+  return {
+    lengkap: lengkap, proses: proses, belumAda: belumAda, kosong: kosong,
+    totalRequired: totalRequired, percent: percent, byKode: byKode
+  };
+}
+
+function groupSupplierDocRowsBySupplier() {
+  const rows = sheetToObjects(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
+  const grouped = {};
+  rows.forEach(r => {
+    if (!r.SupplierNama) return;
+    if (!grouped[r.SupplierNama]) grouped[r.SupplierNama] = {};
+    grouped[r.SupplierNama][r.Kode] = r;
+  });
+  return grouped;
+}
+
+/**
+ * Data untuk summary + tabel monitoring di tab "Kelengkapan Dokumen".
+ * Membaca ChecklistMasterDokumen & SupplierDocumentChecklist masing-
+ * masing SEKALI (batch getDataRange().getValues() lewat sheetToObjects),
+ * lalu semua kalkulasi per-supplier dilakukan di memori — tidak ada
+ * pembacaan sheet berulang di dalam loop supplier.
+ */
+function getSupplierDocumentMonitoring() {
+  const master = getChecklistMasterDokumen();
+  const rowsBySupplier = groupSupplierDocRowsBySupplier();
+
+  const list = SUPPLIER_TRADING_BULION_LIST.map(nama => {
+    const progress = computeSupplierDocProgress(nama, master, rowsBySupplier);
+    const statusOf = kode => progress.byKode[kode] ? progress.byKode[kode].status : DOC_STATUS.KOSONG;
+    const kajianStatus = aggregateChecklistStatus([statusOf('15a'), statusOf('15b'), statusOf('15c')]);
+
+    let overallStatus, overallColor;
+    if (progress.totalRequired === 0) { overallStatus = 'N/A'; overallColor = 'abu'; }
+    else if (progress.lengkap === progress.totalRequired) { overallStatus = 'Lengkap'; overallColor = 'hijau'; }
+    else if (progress.lengkap === 0 && progress.proses === 0) { overallStatus = 'Belum Lengkap'; overallColor = 'merah'; }
+    else { overallStatus = 'Dalam Proses'; overallColor = 'kuning'; }
+
+    const itemStatusLabels = {};
+    master.forEach(m => {
+      if (m.IsHeader === true || m.IsHeader === 'TRUE') return;
+      itemStatusLabels[m.Kode] = checklistStatusMeta(statusOf(m.Kode)).label;
+    });
+
+    return {
+      supplierNama: nama,
+      percent: progress.percent,
+      jumlahLengkap: progress.lengkap,
+      jumlahProses: progress.proses,
+      jumlahBelumAda: progress.belumAda + progress.kosong,
+      totalRequired: progress.totalRequired,
+      edd: checklistStatusMeta(statusOf('14b')).label,
+      legalDD: checklistStatusMeta(statusOf('14c')).label,
+      kajian: checklistStatusMeta(kajianStatus).label,
+      kajianKepatuhan: checklistStatusMeta(statusOf('15a')).label,
+      kajianLegal: checklistStatusMeta(statusOf('15b')).label,
+      kajianMrok: checklistStatusMeta(statusOf('15c')).label,
+      itemStatusLabels: itemStatusLabels,
+      status: overallStatus,
+      statusColor: overallColor
+    };
+  });
+
+  const totalSupplier = list.length;
+  const supplierLengkap = list.filter(s => s.status === 'Lengkap').length;
+  const supplierBelumLengkap = list.filter(s => s.status !== 'Lengkap').length;
+  const avgPercent = totalSupplier ? Math.round(list.reduce((a, s) => a + s.percent, 0) / totalSupplier) : 0;
+  const totalDokumenBelumDipenuhi = list.reduce((a, s) => a + s.jumlahBelumAda + s.jumlahProses, 0);
+
+  return {
+    summary: {
+      totalSupplier: totalSupplier,
+      supplierLengkap: supplierLengkap,
+      supplierBelumLengkap: supplierBelumLengkap,
+      avgPercent: avgPercent,
+      totalDokumenBelumDipenuhi: totalDokumenBelumDipenuhi
+    },
+    rows: list,
+    defaultSourceSpreadsheetId: SUPPLIER_DOC_CHECKLIST_DEFAULT_SOURCE_ID
+  };
+}
+
+const CHECKLIST_CATEGORY_ORDER = [
+  'A. Identitas', 'B. Pajak & Perizinan', 'C. Anggaran Dasar',
+  'D. Dokumen Supplier', 'E. KYC', 'F. Kajian', 'G. Lainnya'
+];
+
+/**
+ * Detail checklist satu supplier, dikelompokkan per kategori,
+ * plus daftar dokumen yang masih harus dipenuhi (Belum Ada / Dalam Proses).
+ */
+function getSupplierDocumentDetail(namaSupplier) {
+  const master = getChecklistMasterDokumen();
+  const rowsBySupplier = groupSupplierDocRowsBySupplier();
+  const rows = rowsBySupplier[namaSupplier] || {};
+  const progress = computeSupplierDocProgress(namaSupplier, master, rowsBySupplier);
+
+  const groups = CHECKLIST_CATEGORY_ORDER.map(kategori => ({ kategori: kategori, items: [] }));
+  const groupByKategori = {};
+  groups.forEach(g => { groupByKategori[g.kategori] = g; });
+
+  const gapList = [];
+
+  master.forEach(m => {
+    if (m.IsHeader === true || m.IsHeader === 'TRUE') return;
+    const r = rows[m.Kode] || {};
+    const status = normalizeChecklistStatus(r.Status);
+    const meta = checklistStatusMeta(status);
+    const expiry = computeExpiryStatus(r.TanggalBerlaku);
+    const item = {
+      kode: m.Kode,
+      nama: m.NamaDokumen,
+      status: status,
+      statusLabel: meta.label,
+      statusIcon: meta.icon,
+      statusColor: meta.color,
+      checked: status === DOC_STATUS.LENGKAP,
+      tanggalDiterima: r.TanggalDiterima || '',
+      tanggalBerlaku: r.TanggalBerlaku || '',
+      catatan: r.Catatan || '',
+      linkDokumen: r.LinkDokumen || '',
+      expiry: expiry
+    };
+    const grp = groupByKategori[m.Kategori];
+    if (grp) grp.items.push(item);
+
+    if (status === DOC_STATUS.BELUM_ADA || status === DOC_STATUS.PROSES) {
+      gapList.push({ kode: m.Kode, nama: m.NamaDokumen, status: status, statusLabel: meta.label });
+    }
+  });
+
+  return {
+    supplierNama: namaSupplier,
+    progress: { lengkap: progress.lengkap, totalRequired: progress.totalRequired, percent: progress.percent },
+    groups: groups,
+    gapList: gapList
+  };
+}
+
+/**
+ * Simpan/update satu item checklist dokumen supplier secara manual
+ * dari UI (checkbox status, tanggal, catatan, link dokumen).
+ */
+function saveSupplierDocumentChecklistItem(data) {
+  requireRole('Supervisor');
+  const nama = String(data.supplierNama || '').trim();
+  const kode = String(data.kode || '').trim();
+  if (!nama || !kode) throw new Error('supplierNama dan kode wajib diisi.');
+  if (SUPPLIER_TRADING_BULION_LIST.indexOf(nama) === -1) throw new Error('Supplier tidak dikenal: ' + nama);
+
+  const user = getCurrentUser();
+  const now = new Date();
+  saveSupplierDocumentChecklistItemInternal(
+    nama, kode, data.status,
+    data.tanggalDiterima, data.tanggalBerlaku, data.catatan, data.linkDokumen,
+    now, user.Email
+  );
+  logAudit('UPDATE', 'SupplierDocumentChecklist', nama + '|' + kode, JSON.stringify(data));
+  return { saved: true };
+}
+
+function normalizeChecklistText(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+const CHECKLIST_MATCH_STOPWORDS = ['dan', 'atau', 'yang', 'untuk', 'dari', 'perusahaan', 'berikut', 'terakhir', 'masih', 'berlaku', 'mengenai', 'the', 'of'];
+
+/** Cocokkan teks satu baris di sheet sumber ke salah satu kode master checklist (fuzzy, berbasis token). */
+function matchChecklistCode(rowLabel, masterItems) {
+  const rowNorm = normalizeChecklistText(rowLabel);
+  if (!rowNorm) return null;
+  const rowTokens = rowNorm.split(' ').filter(t => t.length > 2 && CHECKLIST_MATCH_STOPWORDS.indexOf(t) === -1);
+  let best = null, bestScore = 0;
+  masterItems.forEach(m => {
+    const mNorm = normalizeChecklistText(m.NamaDokumen);
+    const mTokens = mNorm.split(' ').filter(t => t.length > 2 && CHECKLIST_MATCH_STOPWORDS.indexOf(t) === -1);
+    if (!mTokens.length) return;
+    let score = 0;
+    mTokens.forEach(t => { if (rowTokens.indexOf(t) > -1) score++; });
+    const ratio = score / mTokens.length;
+    const containment = rowNorm.indexOf(mNorm) > -1 || mNorm.indexOf(rowNorm) > -1;
+    const finalScore = containment ? score + 1 : score;
+    if (ratio >= 0.6 && finalScore > bestScore) { bestScore = finalScore; best = m; }
+  });
+  return best ? best.Kode : null;
+}
+
+/**
+ * Import data checklist ASLI dari spreadsheet sumber (PEMENUHAN
+ * DOKUMEN SUPPLIER TRADING BULION). Fungsi ini dijalankan DI DALAM
+ * Web App — saat dipanggil lewat google.script.run dari browser user
+ * yang sedang login, Apps Script membuka spreadsheet sumber dengan
+ * otorisasi Google akun tersebut (arsitektur: User -> Web App ->
+ * Apps Script -> Google Spreadsheet), sama seperti PRICE_DISCOVERY_SOURCE_ID
+ * dipakai di modul lain. Tidak ada nilai TRUE/FALSE yang dikarang:
+ * kalau baris/sheet tidak match, dilaporkan sebagai unmatched supaya
+ * bisa diisi manual, bukan ditebak.
+ */
+function importSupplierDocumentChecklistFromSheet(spreadsheetUrlOrId) {
+  requireRole('Admin');
+  const input = String(spreadsheetUrlOrId || SUPPLIER_DOC_CHECKLIST_DEFAULT_SOURCE_ID || '').trim();
+  const idMatch = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  const spreadsheetId = idMatch ? idMatch[1] : input;
+  if (!spreadsheetId) throw new Error('Spreadsheet ID/URL tidak valid.');
+
+  let sourceSs;
+  try {
+    sourceSs = SpreadsheetApp.openById(spreadsheetId);
+  } catch (e) {
+    throw new Error('Tidak bisa membuka spreadsheet sumber. Pastikan file sudah di-share (minimal "Viewer") ke akun Google yang menjalankan aplikasi ini. Detail: ' + e.message);
+  }
+
+  const master = getChecklistMasterDokumen().filter(m => !(m.IsHeader === true || m.IsHeader === 'TRUE'));
+  const sheets = sourceSs.getSheets();
+  const user = getCurrentUser();
+  const now = new Date();
+
+  const result = { suppliersMatched: [], unmatchedSheets: [], itemsImported: 0, unmatchedRows: [] };
+
+  SUPPLIER_TRADING_BULION_LIST.forEach(supplierName => {
+    const sh = sheets.find(s => normalizeChecklistText(s.getName()) === normalizeChecklistText(supplierName));
+    if (!sh) { result.unmatchedSheets.push(supplierName); return; }
+
+    // SATU kali batch read per sheet supplier — bukan per cell.
+    const values = sh.getDataRange().getValues();
+    let headerRowIdx = -1, colStatus = -1, colLabel = 0, colTerima = -1, colBerlaku = -1, colCatatan = -1, colLink = -1;
+    for (let r = 0; r < Math.min(15, values.length); r++) {
+      const rowText = values[r].map(c => normalizeChecklistText(c));
+      const idx = rowText.findIndex(c => c.indexOf('status') > -1);
+      if (idx > -1) {
+        headerRowIdx = r;
+        colStatus = idx;
+        rowText.forEach((c, ci) => {
+          if (c.indexOf('nama dokumen') > -1 || c === 'dokumen' || c.indexOf('checklist') > -1 || c.indexOf('item') > -1) colLabel = ci;
+          if (c.indexOf('terima') > -1) colTerima = ci;
+          if (c.indexOf('berlaku') > -1 || c.indexOf('expired') > -1 || c.indexOf('expiry') > -1) colBerlaku = ci;
+          if (c.indexOf('catatan') > -1 || c.indexOf('keterangan') > -1) colCatatan = ci;
+          if (c.indexOf('link') > -1 || c.indexOf('url') > -1) colLink = ci;
+        });
+        break;
+      }
+    }
+    if (headerRowIdx === -1) { result.unmatchedSheets.push(supplierName + ' (header "Status" tidak ditemukan)'); return; }
+
+    for (let r = headerRowIdx + 1; r < values.length; r++) {
+      const row = values[r];
+      const label = row[colLabel];
+      if (!label || !String(label).trim()) continue;
+      const kode = matchChecklistCode(label, master);
+      if (!kode) { result.unmatchedRows.push({ supplier: supplierName, baris: r + 1, teks: String(label) }); continue; }
+
+      const rawStatus = row[colStatus];
+      const status = normalizeChecklistStatus(rawStatus);
+      const tanggalDiterima = colTerima > -1 ? row[colTerima] : '';
+      const tanggalBerlaku = colBerlaku > -1 ? row[colBerlaku] : '';
+      const catatan = colCatatan > -1 ? row[colCatatan] : '';
+      const linkDokumen = colLink > -1 ? row[colLink] : '';
+
+      saveSupplierDocumentChecklistItemInternal(supplierName, kode, status, tanggalDiterima, tanggalBerlaku, catatan, linkDokumen, now, user.Email);
+      result.itemsImported++;
+    }
+    result.suppliersMatched.push(supplierName);
+  });
+
+  logAudit('IMPORT', 'SupplierDocumentChecklist', spreadsheetId, result.itemsImported + ' item diimpor dari ' + result.suppliersMatched.length + ' supplier.');
+  return result;
+}
+
+/** Versi internal penyimpanan satu item checklist, dipakai oleh save manual maupun proses import. */
+function saveSupplierDocumentChecklistItemInternal(nama, kode, status, tanggalDiterima, tanggalBerlaku, catatan, linkDokumen, timestamp, userEmail) {
+  const sheet = getSheet(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
+  const rows = sheetToObjects(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST);
+  const existing = rows.find(r => r.SupplierNama === nama && r.Kode === kode);
+  const updates = {
+    Status: status !== undefined ? status : (existing ? existing.Status : ''),
+    TanggalDiterima: tanggalDiterima !== undefined ? (tanggalDiterima || '') : (existing ? existing.TanggalDiterima : ''),
+    TanggalBerlaku: tanggalBerlaku !== undefined ? (tanggalBerlaku || '') : (existing ? existing.TanggalBerlaku : ''),
+    Catatan: catatan !== undefined ? (catatan || '') : (existing ? existing.Catatan : ''),
+    LinkDokumen: linkDokumen !== undefined ? (linkDokumen || '') : (existing ? existing.LinkDokumen : ''),
+    UpdatedAt: timestamp,
+    UpdatedBy: userEmail
+  };
+  if (existing) {
+    updateRowById(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST, 'ID', existing.ID, updates);
+  } else {
+    const newId = getNextId(SHEET_NAMES.SUPPLIER_DOC_CHECKLIST, 'ID', 'DOC');
+    sheet.appendRow([newId, nama, kode, updates.Status, updates.TanggalDiterima, updates.TanggalBerlaku, updates.Catatan, updates.LinkDokumen, updates.UpdatedAt, updates.UpdatedBy]);
+  }
 }
 
 /**

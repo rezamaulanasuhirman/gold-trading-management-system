@@ -2942,4 +2942,203 @@
       .withFailureHandler(handleLoadError)
       .getPenetapanHargaBobotRecent(30);
   }
+
+  // ============================================================
+  // MONITORING SUPPLIER PKS — TAB "KELENGKAPAN DOKUMEN"
+  // (enhancement pada halaman Profile Mitra, bukan menu baru)
+  // ============================================================
+  let sdcMonitoringData = null;
+  let sdcLoadedOnce = false;
+  let sdcCurrentSupplier = null;
+  const SDC_LABEL_COLOR = { 'Lengkap': 'hijau', 'Dalam Proses': 'kuning', 'Belum Ada': 'merah', 'N/A': 'abu', 'Belum Diisi': 'abu' };
+
+  function showMitraMainTab(tabId, el) {
+    document.querySelectorAll('#mitra-maintab-btn-pks, #mitra-maintab-btn-checklist').forEach(function (b) { b.classList.remove('active'); });
+    if (el) el.classList.add('active');
+    document.getElementById('mitra-maintab-pks').style.display = tabId === 'pks' ? '' : 'none';
+    document.getElementById('mitra-maintab-checklist').style.display = tabId === 'checklist' ? '' : 'none';
+    if (tabId === 'checklist' && !sdcLoadedOnce) {
+      sdcLoadedOnce = true;
+      loadSupplierDocMonitoring();
+    }
+  }
+
+  function sdcEscapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function loadSupplierDocMonitoring() {
+    const body = document.getElementById('sdc-table-body');
+    if (body) body.innerHTML = '<tr><td colspan="10" class="recent-empty">Memuat...</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+        sdcMonitoringData = data;
+        const s = data.summary;
+        document.getElementById('sdc-kpi-total').textContent = s.totalSupplier;
+        document.getElementById('sdc-kpi-lengkap').textContent = s.supplierLengkap;
+        document.getElementById('sdc-kpi-belum').textContent = s.supplierBelumLengkap;
+        document.getElementById('sdc-kpi-avg').textContent = s.avgPercent + '%';
+        document.getElementById('sdc-kpi-missing').textContent = s.totalDokumenBelumDipenuhi;
+        renderSupplierDocTable();
+      })
+      .withFailureHandler(handleLoadError)
+      .getSupplierDocumentMonitoring();
+  }
+
+  function sdcProgressBarHtml(percent, color) {
+    return '<div class="sdc-progress-wrap">' +
+      '<div class="sdc-progress-track"><div class="sdc-progress-fill ' + color + '" style="width:' + percent + '%;"></div></div>' +
+      '<div class="sdc-progress-pct">' + percent + '%</div>' +
+      '</div>';
+  }
+
+  function renderSupplierDocTable() {
+    const body = document.getElementById('sdc-table-body');
+    if (!sdcMonitoringData || !body) return;
+
+    const search = (document.getElementById('sdc-search').value || '').trim().toLowerCase();
+    const fStatus = document.getElementById('sdc-filter-status').value;
+    const fEdd = document.getElementById('sdc-filter-edd').value;
+    const fLegalDD = document.getElementById('sdc-filter-legaldd').value;
+    const fKajianKepatuhan = document.getElementById('sdc-filter-kajian-kepatuhan').value;
+    const fKajianLegal = document.getElementById('sdc-filter-kajian-legal').value;
+    const fKajianMrok = document.getElementById('sdc-filter-kajian-mrok').value;
+
+    const rows = sdcMonitoringData.rows.filter(function (r) {
+      if (search && r.supplierNama.toLowerCase().indexOf(search) === -1) return false;
+      if (fStatus && r.status !== fStatus) return false;
+      if (fEdd && r.edd !== fEdd) return false;
+      if (fLegalDD && r.legalDD !== fLegalDD) return false;
+      if (fKajianKepatuhan && r.kajianKepatuhan !== fKajianKepatuhan) return false;
+      if (fKajianLegal && r.kajianLegal !== fKajianLegal) return false;
+      if (fKajianMrok && r.kajianMrok !== fKajianMrok) return false;
+      return true;
+    });
+
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="10" class="recent-empty">Tidak ada supplier yang cocok dengan filter.</td></tr>'; return; }
+
+    body.innerHTML = rows.map(function (r) {
+      return '<tr>' +
+        '<td><span class="sdc-supplier-link" onclick="openSupplierDocDetail(\'' + r.supplierNama + '\')">' + sdcEscapeHtml(r.supplierNama) + '</span></td>' +
+        '<td>' + sdcProgressBarHtml(r.percent, r.statusColor) + '</td>' +
+        '<td>' + r.jumlahLengkap + '</td>' +
+        '<td>' + r.jumlahProses + '</td>' +
+        '<td>' + r.jumlahBelumAda + '</td>' +
+        '<td><span class="sdc-badge ' + SDC_LABEL_COLOR[r.edd] + '">' + r.edd + '</span></td>' +
+        '<td><span class="sdc-badge ' + SDC_LABEL_COLOR[r.legalDD] + '">' + r.legalDD + '</span></td>' +
+        '<td><span class="sdc-badge ' + SDC_LABEL_COLOR[r.kajian] + '">' + r.kajian + '</span></td>' +
+        '<td><span class="sdc-badge ' + r.statusColor + '">' + r.status + '</span></td>' +
+        '<td><button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="openSupplierDocDetail(\'' + r.supplierNama + '\')">Detail</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function sdcExpiryHtml(expiry) {
+    if (!expiry) return '';
+    const label = expiry.color === 'merah' ? 'Expired' : expiry.color === 'kuning' ? ('Expired ' + expiry.sisaHari + ' hari lagi') : 'Berlaku ' + expiry.sisaHari + ' hari lagi';
+    return '<span><span class="sdc-expiry-dot ' + expiry.color + '"></span>' + label + '</span>';
+  }
+
+  function openSupplierDocDetail(nama) {
+    sdcCurrentSupplier = nama;
+    document.getElementById('sdc-detail-title').textContent = 'Detail Kelengkapan Dokumen — ' + nama;
+    document.getElementById('sdc-detail-groups').innerHTML = '<div class="recent-empty">Memuat...</div>';
+    document.getElementById('sdc-detail-modal-overlay').style.display = 'flex';
+    google.script.run.withSuccessHandler(renderSupplierDocDetail).withFailureHandler(handleLoadError).getSupplierDocumentDetail(nama);
+  }
+
+  function closeSupplierDocDetailModal() {
+    document.getElementById('sdc-detail-modal-overlay').style.display = 'none';
+    sdcCurrentSupplier = null;
+  }
+
+  function renderSupplierDocDetail(data) {
+    document.getElementById('sdc-detail-progress-fill').className = 'sdc-progress-fill ' +
+      (data.progress.percent === 100 ? 'hijau' : data.progress.lengkap === 0 ? 'merah' : 'kuning');
+    document.getElementById('sdc-detail-progress-fill').style.width = data.progress.percent + '%';
+    document.getElementById('sdc-detail-progress-pct').textContent = data.progress.percent + '%';
+    document.getElementById('sdc-detail-progress-count').textContent = data.progress.lengkap + ' dari ' + data.progress.totalRequired + ' dokumen lengkap';
+
+    const gapEl = document.getElementById('sdc-gap-list');
+    if (!data.gapList.length) {
+      gapEl.innerHTML = '<div class="sdc-gap-empty">✅ Semua dokumen yang dipersyaratkan sudah lengkap.</div>';
+    } else {
+      gapEl.innerHTML = data.gapList.map(function (g) {
+        return '<div class="sdc-gap-item">⚠ ' + sdcEscapeHtml(g.nama) + '</div>';
+      }).join('');
+    }
+
+    document.getElementById('sdc-detail-groups').innerHTML = data.groups.filter(function (g) { return g.items.length; }).map(function (g) {
+      return '<div class="sdc-group">' +
+        '<div class="sdc-group-title">' + g.kategori + '</div>' +
+        g.items.map(function (it) { return sdcItemRowHtml(it); }).join('') +
+        '</div>';
+    }).join('');
+  }
+
+  function sdcItemRowHtml(it) {
+    const linkBtn = it.linkDokumen
+      ? '<a href="' + sdcEscapeHtml(it.linkDokumen) + '" target="_blank" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;">Lihat Dokumen</a>'
+      : '';
+    return '<div class="sdc-item-row">' +
+      '<input type="checkbox" class="sdc-item-check" ' + (it.checked ? 'checked' : '') + ' onchange="toggleSupplierDocItem(\'' + it.kode + '\', this.checked)">' +
+      '<div class="sdc-item-body">' +
+      '<div class="sdc-item-name">' + it.statusIcon + ' ' + sdcEscapeHtml(it.nama) + ' <span class="sdc-badge ' + it.statusColor + '" style="margin-left:6px;">' + it.statusLabel + '</span></div>' +
+      '<div class="sdc-item-meta">' +
+      '<span>Diterima: ' + (it.tanggalDiterima ? sdcEscapeHtml(String(it.tanggalDiterima).split('T')[0]) : '-') + '</span>' +
+      '<span>Berlaku s.d.: ' + (it.tanggalBerlaku ? sdcEscapeHtml(String(it.tanggalBerlaku).split('T')[0]) : '-') + '</span>' +
+      (it.expiry ? '<span>' + sdcExpiryHtml(it.expiry) + '</span>' : '') +
+      '</div>' +
+      (it.catatan ? '<div class="sdc-item-note">Catatan: ' + sdcEscapeHtml(it.catatan) + '</div>' : '') +
+      '</div>' +
+      '<div class="sdc-item-actions">' + linkBtn + '</div>' +
+      '</div>';
+  }
+
+  function toggleSupplierDocItem(kode, checked) {
+    if (!sdcCurrentSupplier) return;
+    google.script.run
+      .withSuccessHandler(function () {
+        openSupplierDocDetail(sdcCurrentSupplier);
+        loadSupplierDocMonitoring();
+      })
+      .withFailureHandler(function (err) { handleLoadError(err); openSupplierDocDetail(sdcCurrentSupplier); })
+      .saveSupplierDocumentChecklistItem({ supplierNama: sdcCurrentSupplier, kode: kode, status: checked ? 'LENGKAP' : 'BELUM_ADA' });
+  }
+
+  function openSupplierDocImportModal() {
+    document.getElementById('sdc-import-result').innerHTML = '';
+    document.getElementById('sdc-import-url').value = (sdcMonitoringData && sdcMonitoringData.defaultSourceSpreadsheetId) || '';
+    document.getElementById('sdc-import-modal-overlay').style.display = 'flex';
+  }
+
+  function closeSupplierDocImportModal() {
+    document.getElementById('sdc-import-modal-overlay').style.display = 'none';
+  }
+
+  function submitSupplierDocImport() {
+    const url = document.getElementById('sdc-import-url').value.trim();
+    if (!url) { showToast('Isi URL/ID spreadsheet sumber dulu', 'warning'); return; }
+    const resultEl = document.getElementById('sdc-import-result');
+    resultEl.innerHTML = 'Mengimpor data, mohon tunggu...';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        let html = '<b>Import selesai.</b><br>Item diimpor: ' + res.itemsImported + '<br>Supplier cocok: ' + (res.suppliersMatched.join(', ') || '-');
+        if (res.unmatchedSheets.length) html += '<br><span style="color:var(--color-warning);">Sheet tidak ditemukan/tidak cocok: ' + res.unmatchedSheets.join('; ') + '</span>';
+        if (res.unmatchedRows.length) {
+          html += '<br><span style="color:var(--color-warning);">Baris tidak dikenali (isi manual di Detail Supplier):</span><ul style="margin:4px 0 0 18px; padding:0;">' +
+            res.unmatchedRows.slice(0, 20).map(function (u) { return '<li>' + sdcEscapeHtml(u.supplier) + ' baris ' + u.baris + ': "' + sdcEscapeHtml(u.teks) + '"</li>'; }).join('') + '</ul>';
+        }
+        resultEl.innerHTML = html;
+        showToast('Import checklist selesai', 'success');
+        loadSupplierDocMonitoring();
+      })
+      .withFailureHandler(function (err) {
+        resultEl.innerHTML = '<span style="color:var(--color-danger);">' + (err.message || err) + '</span>';
+      })
+      .importSupplierDocumentChecklistFromSheet(url);
+  }
 </script>
