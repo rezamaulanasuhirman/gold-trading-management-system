@@ -181,28 +181,179 @@
   }
 
   // ============================================================
+  // GLOBAL PERIOD FILTER (Dashboard) — single source of truth.
+  // Semua komponen Dashboard membaca periode dari state ini saja;
+  // tidak ada filter terpisah per card.
+  // ============================================================
+  var dashboardPeriod = { mode: 'month', startDate: null, endDate: null };
+  var dashboardPeriodInitialized = false;
+  var dashboardPeriodLoadToken = 0;
+  var dashboardPeriodLastKey = null;
+
+  var MONTH_NAMES_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function monthKeyOf(date) { return date.getFullYear() + '-' + pad2(date.getMonth() + 1); }
+
+  /**
+   * Rentang tanggal (ISO 'yyyy-MM-dd') awal & akhir bulan dari key 'YYYY-MM'.
+   */
+  function getMonthRange(monthKey) {
+    const parts = monthKey.split('-');
+    const year = Number(parts[0]), month = Number(parts[1]); // month: 1-12
+    const start = year + '-' + pad2(month) + '-01';
+    const lastDay = new Date(year, month, 0).getDate();
+    const end = year + '-' + pad2(month) + '-' + pad2(lastDay);
+    return { start: start, end: end };
+  }
+
+  function formatDateIndo(iso) {
+    if (!iso) return '-';
+    const parts = iso.split('-');
+    return Number(parts[2]) + ' ' + MONTH_NAMES_ID[Number(parts[1]) - 1] + ' ' + parts[0];
+  }
+
+  /**
+   * Isi dropdown Bulan dengan 24 bulan terakhir (termasuk bulan berjalan),
+   * terbaru di atas.
+   */
+  function populatePeriodMonthSelect() {
+    const sel = document.getElementById('period-month-select');
+    if (!sel) return;
+    const now = new Date();
+    const options = [];
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = monthKeyOf(d);
+      options.push('<option value="' + key + '">' + MONTH_NAMES_ID[d.getMonth()] + ' ' + d.getFullYear() + '</option>');
+    }
+    sel.innerHTML = options.join('');
+    sel.value = monthKeyOf(now);
+  }
+
+  function initDashboardPeriodFilter() {
+    populatePeriodMonthSelect();
+    setPeriodMode('month');
+  }
+
+  function setPeriodMode(mode) {
+    dashboardPeriod.mode = mode;
+    const monthTab = document.getElementById('period-mode-month');
+    const rangeTab = document.getElementById('period-mode-range');
+    const monthCtl = document.getElementById('period-controls-month');
+    const rangeCtl = document.getElementById('period-controls-range');
+    if (monthTab) monthTab.classList.toggle('active', mode === 'month');
+    if (rangeTab) rangeTab.classList.toggle('active', mode === 'range');
+    if (monthCtl) monthCtl.style.display = mode === 'month' ? 'flex' : 'none';
+    if (rangeCtl) rangeCtl.style.display = mode === 'range' ? 'flex' : 'none';
+
+    if (mode === 'month') {
+      onPeriodMonthChange();
+    } else {
+      const startEl = document.getElementById('period-start-date');
+      const endEl = document.getElementById('period-end-date');
+      if (startEl && !startEl.value && dashboardPeriod.startDate) startEl.value = dashboardPeriod.startDate;
+      if (endEl && !endEl.value && dashboardPeriod.endDate) endEl.value = dashboardPeriod.endDate;
+      if (startEl && endEl && startEl.value && endEl.value) onPeriodRangeChange();
+    }
+  }
+
+  function onPeriodMonthChange() {
+    const sel = document.getElementById('period-month-select');
+    if (!sel || !sel.value) return;
+    const range = getMonthRange(sel.value);
+    dashboardPeriod.mode = 'month';
+    dashboardPeriod.startDate = range.start;
+    dashboardPeriod.endDate = range.end;
+    document.getElementById('period-active-label-text').textContent =
+      'Periode Aktif: ' + MONTH_NAMES_ID[Number(sel.value.split('-')[1]) - 1] + ' ' + sel.value.split('-')[0];
+    loadDashboardData();
+  }
+
+  function onPeriodRangeChange() {
+    const startEl = document.getElementById('period-start-date');
+    const endEl = document.getElementById('period-end-date');
+    let start = startEl.value, end = endEl.value;
+    if (!start || !end) return;
+    if (start > end) {
+      showToast('Tanggal Mulai tidak boleh lebih besar dari Tanggal Akhir', 'warning');
+      endEl.value = start;
+      end = start;
+    }
+    dashboardPeriod.mode = 'range';
+    dashboardPeriod.startDate = start;
+    dashboardPeriod.endDate = end;
+    document.getElementById('period-active-label-text').textContent =
+      'Periode Aktif: ' + formatDateIndo(start) + ' – ' + formatDateIndo(end);
+    loadDashboardData();
+  }
+
+  function resetPeriodFilter() {
+    const startEl = document.getElementById('period-start-date');
+    const endEl = document.getElementById('period-end-date');
+    if (startEl) startEl.value = '';
+    if (endEl) endEl.value = '';
+    populatePeriodMonthSelect();
+    setPeriodMode('month');
+  }
+
+  // ============================================================
   // LOAD DASHBOARD KPI (data real dari backend)
   // ============================================================
   function loadDashboard() {
+    if (!dashboardPeriodInitialized) {
+      dashboardPeriodInitialized = true;
+      initDashboardPeriodFilter(); // akan memicu loadDashboardData()
+    } else {
+      loadDashboardData(true); // refresh data untuk periode yang sedang aktif
+    }
+  }
+
+  /**
+   * Memuat SELURUH data Dashboard berdasarkan dashboardPeriod
+   * (Global Period Filter) — single source of truth. Semua card
+   * mengirim startDate/endDate yang SAMA ke backend, jadi tidak
+   * ada card yang "ketinggalan" periode filter.
+   */
+  function loadDashboardData(force) {
+    const start = dashboardPeriod.startDate;
+    const end = dashboardPeriod.endDate;
+    const key = dashboardPeriod.mode + '|' + start + '|' + end;
+    if (!force && key === dashboardPeriodLastKey) return; // hindari request berulang untuk periode yang sama
+    dashboardPeriodLastKey = key;
+
+    const reqToken = ++dashboardPeriodLoadToken;
+    function guard(handler) {
+      return function (res) {
+        if (reqToken !== dashboardPeriodLoadToken) return; // respons basi (periode sudah berganti), abaikan
+        handler(res);
+      };
+    }
+
     setKpiLoading(true);
-    loadDashboardMarketStrip();
+    loadDashboardMarketStrip(); // live/realtime — tidak terikat periode filter
 
-    google.script.run.withSuccessHandler(renderSalesKpi).withFailureHandler(handleLoadError).getSalesSummaryAll();
-    google.script.run.withSuccessHandler(renderPembelianKpi).withFailureHandler(handleLoadError).getPembelianSummaryAll();
-    google.script.run.withSuccessHandler(renderMarginKpi).withFailureHandler(handleLoadError).calculateProfitMarginOverall();
+    google.script.run.withSuccessHandler(guard(renderSalesKpi)).withFailureHandler(handleLoadError).getSalesSummaryAll(start, end);
+    google.script.run.withSuccessHandler(guard(renderPembelianKpi)).withFailureHandler(handleLoadError).getPembelianSummaryAll(start, end);
+    google.script.run.withSuccessHandler(guard(renderMarginKpi)).withFailureHandler(handleLoadError).calculateProfitMarginOverall(start, end);
+    google.script.run.withSuccessHandler(guard(renderTransaksiKpi)).withFailureHandler(handleLoadError).getTransactionSummary(start, end);
 
-    google.script.run.withSuccessHandler(function (v) { renderSparkline('spark-penjualan', 'sparkPenjualan', v, cssColor('--color-primary')); }).withFailureHandler(handleLoadError).getPenjualanSparklineValues();
-    google.script.run.withSuccessHandler(function (v) { renderSparkline('spark-pembelian', 'sparkPembelian', v, cssColor('--color-gold')); }).withFailureHandler(handleLoadError).getPembelianSparklineValues();
-    google.script.run.withSuccessHandler(function (v) { renderSparkline('spark-margin', 'sparkMargin', v, '#8B5CF6'); }).withFailureHandler(handleLoadError).getMarginSparklineValues();
+    google.script.run.withSuccessHandler(guard(function (v) { renderSparkline('spark-penjualan', 'sparkPenjualan', v, cssColor('--color-primary')); })).withFailureHandler(handleLoadError).getPenjualanSparklineValues(start, end);
+    google.script.run.withSuccessHandler(guard(function (v) { renderSparkline('spark-pembelian', 'sparkPembelian', v, cssColor('--color-gold')); })).withFailureHandler(handleLoadError).getPembelianSparklineValues(start, end);
+    google.script.run.withSuccessHandler(guard(function (v) { renderSparkline('spark-margin', 'sparkMargin', v, '#8B5CF6'); })).withFailureHandler(handleLoadError).getMarginSparklineValues(start, end);
 
-    google.script.run.withSuccessHandler(renderAiSummary).withFailureHandler(handleLoadError).generateOverallSummary();
-    google.script.run.withSuccessHandler(renderAlerts).withFailureHandler(handleLoadError).getAlertsOverall();
-    // (Market Indicators dihapus)
-    google.script.run.withSuccessHandler(renderPiutangSupplierChart).withFailureHandler(handleLoadError).getPiutangLive(null);
-    google.script.run.withSuccessHandler(renderTopMerkChart).withFailureHandler(handleLoadError).getTopMerkPenjualan(5);
-    google.script.run.withSuccessHandler(renderSalesBuyerChart).withFailureHandler(handleLoadError).getSalesByBuyerAll();
-    google.script.run.withSuccessHandler(renderTopBuyerRank).withFailureHandler(handleLoadError).getTopBuyers(5);
-    google.script.run.withSuccessHandler(renderTopSupplierRank).withFailureHandler(handleLoadError).getTopSuppliers(5);
+    google.script.run.withSuccessHandler(guard(renderAiSummary)).withFailureHandler(handleLoadError).generateOverallSummary(start, end);
+    google.script.run.withSuccessHandler(guard(renderAlerts)).withFailureHandler(handleLoadError).getAlertsOverall(start, end);
+    // Piutang per Supplier = posisi/saldo outstanding TERKINI (live snapshot
+    // dari sheet Rekap, bukan riwayat per tanggal) — tidak dipaksakan ikut
+    // filter periode, sesuai sifat datanya (posisi, bukan transaksi).
+    google.script.run.withSuccessHandler(guard(renderPiutangSupplierChart)).withFailureHandler(handleLoadError).getPiutangLive(null);
+    google.script.run.withSuccessHandler(guard(renderTopMerkChart)).withFailureHandler(handleLoadError).getTopMerkPenjualan(5, start, end);
+    google.script.run.withSuccessHandler(guard(renderSalesBuyerChart)).withFailureHandler(handleLoadError).getSalesByBuyerAll(start, end);
+    google.script.run.withSuccessHandler(guard(renderTopBuyerRank)).withFailureHandler(handleLoadError).getTopBuyers(5, start, end);
+    google.script.run.withSuccessHandler(guard(renderTopSupplierRank)).withFailureHandler(handleLoadError).getTopSuppliers(5, start, end);
+    // Trend 30-hari terakhir — chart historis tetap (bukan bagian dari
+    // Global Period Filter), agar pola margin/barang tiba tetap terbaca.
     google.script.run.withSuccessHandler(renderMarginTrendChart).withFailureHandler(handleLoadError).getMarginTrendHarian(30);
     google.script.run.withSuccessHandler(renderBarangTibaChart).withFailureHandler(handleLoadError).getBarangTibaTrend(30);
   }
@@ -283,6 +434,12 @@
     document.getElementById('kpi-margin-sub').innerHTML =
       '<span>Penjualan: <b>' + formatRupiah(res.totalPenjualan) + '</b></span><span>Pembelian: <b>' + formatRupiah(res.totalPembelian) + '</b></span>';
     clearKpiLoading('kpi-card-margin');
+  }
+  function renderTransaksiKpi(res) {
+    document.getElementById('kpi-transaksi-nominal').textContent = formatRupiah(res.totalNominal);
+    document.getElementById('kpi-transaksi-sub').innerHTML =
+      '<span><b>' + res.jumlahPembelian + '</b> pembelian</span><span><b>' + res.jumlahPenjualan + '</b> penjualan</span>';
+    clearKpiLoading('kpi-card-transaksi');
   }
   function renderBenchmarkKpi(res) {
     const val = document.getElementById('kpi-benchmark-value');

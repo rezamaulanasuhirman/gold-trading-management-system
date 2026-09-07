@@ -138,11 +138,34 @@
         <!-- ============ PAGE: DASHBOARD ============ -->
         <section class="page active" id="page-dashboard">
           <div class="page-header">
-            <h1>Dashboard</h1>
-            <p>Ringkasan keseluruhan aktivitas trading emas — update otomatis, tanpa perlu refresh halaman.</p>
+            <div class="dashboard-header-row">
+              <div>
+                <h1>Dashboard</h1>
+                <p>Ringkasan keseluruhan aktivitas trading emas — update otomatis, tanpa perlu refresh halaman.</p>
+                <div class="period-active-label" id="period-active-label">
+                  <span class="material-symbols-rounded" style="font-size:14px;">event</span>
+                  <span id="period-active-label-text">Periode Aktif: -</span>
+                </div>
+              </div>
+              <div class="period-filter-bar no-print">
+                <div class="period-mode-tabs">
+                  <button type="button" class="period-mode-tab" id="period-mode-range" onclick="setPeriodMode('range')">Rentang Tanggal</button>
+                  <button type="button" class="period-mode-tab active" id="period-mode-month" onclick="setPeriodMode('month')">Bulan</button>
+                </div>
+                <div class="period-filter-controls" id="period-controls-month">
+                  <select class="date-picker-input" id="period-month-select" onchange="onPeriodMonthChange()"></select>
+                </div>
+                <div class="period-filter-controls" id="period-controls-range" style="display:none;">
+                  <input type="date" class="date-picker-input" id="period-start-date" onchange="onPeriodRangeChange()">
+                  <span class="period-range-sep">s.d.</span>
+                  <input type="date" class="date-picker-input" id="period-end-date" onchange="onPeriodRangeChange()">
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="resetPeriodFilter()"><span class="material-symbols-rounded">restart_alt</span> Reset</button>
+              </div>
+            </div>
           </div>
 
-          <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
             <div class="card kpi-card with-spark" id="kpi-card-sales">
               <div class="kpi-main">
                 <div class="kpi-icon"><span class="material-symbols-rounded">sell</span></div>
@@ -171,6 +194,15 @@
                 <div class="kpi-sub" id="kpi-margin-sub"></div>
               </div>
               <div class="kpi-sparkline-wrap"><canvas id="spark-margin"></canvas></div>
+            </div>
+
+            <div class="card kpi-card" id="kpi-card-transaksi">
+              <div class="kpi-main">
+                <div class="kpi-icon"><span class="material-symbols-rounded">receipt_long</span></div>
+                <div class="kpi-label">Jumlah Transaksi</div>
+                <div class="kpi-value" id="kpi-transaksi-nominal">-</div>
+                <div class="kpi-sub" id="kpi-transaksi-sub"></div>
+              </div>
             </div>
           </div>
 

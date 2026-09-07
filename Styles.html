@@ -201,6 +201,40 @@
   @media (max-width: 800px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
 
+  /* ---------------- Global Period Filter (Dashboard) ---------------- */
+  .dashboard-header-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+  }
+  .period-filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .period-mode-tabs {
+    display: flex; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+    overflow: hidden; flex-shrink: 0;
+  }
+  .period-mode-tab {
+    font-family: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 7px 12px; border: none; background: var(--color-surface);
+    color: var(--color-text-muted); cursor: pointer; transition: all var(--transition);
+    white-space: nowrap;
+  }
+  .period-mode-tab + .period-mode-tab { border-left: 1px solid var(--color-border); }
+  .period-mode-tab.active { background: var(--color-primary); color: #fff; }
+  .period-filter-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .period-filter-controls .date-picker-input { width: 132px; }
+  .period-filter-controls select.date-picker-input { width: auto; min-width: 168px; }
+  .period-range-sep { font-size: 12px; color: var(--color-text-muted); }
+  .btn-sm { padding: 7px 12px; font-size: 12.5px; }
+  .period-active-label {
+    margin-top: 8px; font-size: 12px; color: var(--color-primary); font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--color-primary-soft);
+    padding: 4px 10px; border-radius: 999px;
+  }
+  @media (max-width: 800px) {
+    .dashboard-header-row { flex-direction: column; }
+    .period-filter-bar { width: 100%; }
+  }
+
   .kpi-card { display: flex; flex-direction: column; gap: 10px; }
   .kpi-icon {
     width: 38px; height: 38px; border-radius: 11px;
