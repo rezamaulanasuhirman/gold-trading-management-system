@@ -625,6 +625,26 @@ function parseDateValue(value) {
   return iso ? new Date(iso + 'T00:00:00').getTime() : 0;
 }
 
+/**
+ * GLOBAL PERIOD FILTER (Dashboard) — filter sebuah array record
+ * berdasarkan field Tanggal (default 'Tanggal'), inklusif terhadap
+ * startDate & endDate ('yyyy-MM-dd'). Kalau startDate/endDate
+ * kosong, array dikembalikan apa adanya (tanpa filter) — supaya
+ * fungsi yang sama tetap kompatibel dipakai halaman lain (Penjualan,
+ * Analytics, dll) yang belum mengirim periode.
+ */
+function filterByPeriod(list, startDate, endDate, dateField) {
+  if (!startDate && !endDate) return list;
+  const field = dateField || 'Tanggal';
+  return list.filter(function (row) {
+    const d = extractDateOnly(row[field]);
+    if (!d) return false;
+    if (startDate && d < startDate) return false;
+    if (endDate && d > endDate) return false;
+    return true;
+  });
+}
+
 // ------------------------------------------------------------
 // HELPER "HARI INI" — dipakai untuk recent-list di form (Fase 4)
 // ------------------------------------------------------------
@@ -736,9 +756,9 @@ function getSalesByBuyerToday(dateStr) {
 /**
  * Ranking Top Buyer — berdasarkan seluruh histori PenjualanTransaksi.
  */
-function getTopBuyers(limit) {
+function getTopBuyers(limit, startDate, endDate) {
   limit = limit || 5;
-  const list = sheetToObjects(SHEET_NAMES.PENJUALAN_FULL);
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PENJUALAN_FULL), startDate, endDate);
   const grouped = {};
   list.forEach(p => {
     const key = p.Pembeli;
@@ -756,9 +776,9 @@ function getTopBuyers(limit) {
  * Ranking Top Supplier — berdasarkan histori PembelianTransaksi
  * (data pembelian lengkap, termasuk pajak & diskon).
  */
-function getTopSuppliers(limit) {
+function getTopSuppliers(limit, startDate, endDate) {
   limit = limit || 5;
-  const list = sheetToObjects(SHEET_NAMES.PEMBELIAN_FULL);
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PEMBELIAN_FULL), startDate, endDate);
   const grouped = {};
   list.forEach(p => {
     const key = p.Seller;
@@ -1027,8 +1047,9 @@ function formatRupiahServer(num) {
  * Supplier dengan rata-rata harga terendah dari SELURUH riwayat
  * SupplierPrice (bukan cuma satu tanggal).
  */
-function getCheapestSupplierOverall() {
-  const allPrices = sheetToObjects(SHEET_NAMES.SUPPLIER_PRICE).filter(p => Number(p.HargaRataRata) > 0);
+function getCheapestSupplierOverall(startDate, endDate) {
+  const allPrices = filterByPeriod(sheetToObjects(SHEET_NAMES.SUPPLIER_PRICE), startDate, endDate)
+    .filter(p => Number(p.HargaRataRata) > 0);
   const bySupplier = {};
   allPrices.forEach(p => {
     if (!bySupplier[p.SupplierNama]) bySupplier[p.SupplierNama] = [];
@@ -1059,8 +1080,8 @@ function getLatestBenchmark() {
 /**
  * Statistik margin dari SELURUH riwayat PriceSetting.
  */
-function calculateMarginStatsOverall() {
-  const list = sheetToObjects(SHEET_NAMES.PRICE_SETTING);
+function calculateMarginStatsOverall(startDate, endDate) {
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PRICE_SETTING), startDate, endDate);
   if (!list.length) return { average: 0, highest: 0, lowest: 0 };
   const margins = list.map(p => Number(p.HargaMargin));
   return {
@@ -1138,13 +1159,15 @@ function getBenchmarkComparisonOverall() {
 /**
  * AI Summary versi keseluruhan (dipakai Dashboard).
  */
-function generateOverallSummary() {
-  const cheapest = getCheapestSupplierOverall();
-  const marginStats = calculateMarginStatsOverall();
-  const sales = getSalesSummaryAll();
+function generateOverallSummary(startDate, endDate) {
+  const cheapest = getCheapestSupplierOverall(startDate, endDate);
+  const marginStats = calculateMarginStatsOverall(startDate, endDate);
+  const sales = getSalesSummaryAll(startDate, endDate);
 
   if (!cheapest) {
-    return 'Belum ada data harga supplier yang diinput. Input harga di menu Daily Trading untuk melihat ringkasan otomatis.';
+    return (startDate || endDate)
+      ? 'Belum ada data harga supplier yang diinput pada periode ini.'
+      : 'Belum ada data harga supplier yang diinput. Input harga di menu Daily Trading untuk melihat ringkasan otomatis.';
   }
 
   let text = 'Supplier dengan rata-rata harga paling kompetitif secara keseluruhan adalah ' + cheapest.supplierNama +
@@ -1173,11 +1196,11 @@ function generateOverallSummary() {
 /**
  * Alert versi keseluruhan (dipakai Dashboard).
  */
-function getAlertsOverall() {
+function getAlertsOverall(startDate, endDate) {
   const alerts = [];
-  const cheapest = getCheapestSupplierOverall();
+  const cheapest = getCheapestSupplierOverall(startDate, endDate);
   const benchmark = getLatestBenchmark();
-  const marginStats = calculateMarginStatsOverall();
+  const marginStats = calculateMarginStatsOverall(startDate, endDate);
 
   if (cheapest && benchmark) {
     if (cheapest.harga < Number(benchmark.SpotGold)) {
@@ -1310,8 +1333,8 @@ function getBenchmarkTrend(days) {
 // ------------------------------------------------------------
 // HALAMAN PENJUALAN — ringkasan & ranking seluruh waktu
 // ------------------------------------------------------------
-function getSalesSummaryAll() {
-  const list = sheetToObjects(SHEET_NAMES.PENJUALAN_FULL);
+function getSalesSummaryAll(startDate, endDate) {
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PENJUALAN_FULL), startDate, endDate);
   return {
     totalNominal: list.reduce((sum, p) => sum + Number(p.TotalHarga || 0), 0),
     totalGram: list.reduce((sum, p) => sum + Number(p.Qty || 0), 0),
@@ -1319,8 +1342,8 @@ function getSalesSummaryAll() {
   };
 }
 
-function getSalesByBuyerAll() {
-  const list = sheetToObjects(SHEET_NAMES.PENJUALAN_FULL);
+function getSalesByBuyerAll(startDate, endDate) {
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PENJUALAN_FULL), startDate, endDate);
   const grouped = {};
   list.forEach(p => {
     const key = p.Pembeli;
@@ -1334,8 +1357,8 @@ function getSalesByBuyerAll() {
 /**
  * Total Pembelian seluruh waktu (dipakai Dashboard).
  */
-function getPembelianSummaryAll() {
-  const list = sheetToObjects(SHEET_NAMES.PEMBELIAN_FULL);
+function getPembelianSummaryAll(startDate, endDate) {
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PEMBELIAN_FULL), startDate, endDate);
   return {
     totalNominal: list.reduce((sum, p) => sum + Number(p.TotalHarga || 0), 0),
     totalGram: list.reduce((sum, p) => sum + Number(p.Qty || 0), 0),
@@ -1347,14 +1370,31 @@ function getPembelianSummaryAll() {
  * Profit Margin keseluruhan = Total Penjualan - Total Pembelian
  * (dipakai kartu "Margin" di Dashboard).
  */
-function calculateProfitMarginOverall() {
-  const penjualan = getSalesSummaryAll();
-  const pembelian = getPembelianSummaryAll();
+function calculateProfitMarginOverall(startDate, endDate) {
+  const penjualan = getSalesSummaryAll(startDate, endDate);
+  const pembelian = getPembelianSummaryAll(startDate, endDate);
   const profitMargin = (penjualan.totalNominal || 0) - (pembelian.totalNominal || 0);
   return {
     profitMargin: profitMargin,
     totalPenjualan: penjualan.totalNominal || 0,
     totalPembelian: pembelian.totalNominal || 0
+  };
+}
+
+/**
+ * Ringkasan "Jumlah Transaksi" (dipakai kartu keempat Dashboard) —
+ * total nominal transaksi (Penjualan + Pembelian) beserta rincian
+ * jumlah transaksi masing-masing, mengikuti periode filter yang sama
+ * dengan kartu Penjualan/Pembelian/Margin.
+ */
+function getTransaksiSummaryAll(startDate, endDate) {
+  const penjualan = getSalesSummaryAll(startDate, endDate);
+  const pembelian = getPembelianSummaryAll(startDate, endDate);
+  return {
+    totalNominal: (penjualan.totalNominal || 0) + (pembelian.totalNominal || 0),
+    jumlahPenjualan: penjualan.jumlahInvoice || 0,
+    jumlahPembelian: pembelian.jumlahTransaksi || 0,
+    jumlahTotal: (penjualan.jumlahInvoice || 0) + (pembelian.jumlahTransaksi || 0)
   };
 }
 
@@ -1371,49 +1411,51 @@ function getEarliestTransactionDate() {
 }
 
 /**
- * Nilai harian sederhana (angka saja, untuk sparkline mini-chart
- * di kartu KPI Dashboard) — dari transaksi pertama tercatat s/d
- * hari ini (bukan rolling window).
+ * Daftar tanggal (yyyy-MM-dd) harian dari startDate s.d. endDate,
+ * inklusif — dipakai untuk membangun sparkline per periode filter.
+ * Kalau startDate/endDate tidak dikirim, sparkline dibangun dari
+ * transaksi pertama tercatat s/d hari ini (perilaku lama).
  */
-function getPenjualanSparklineValues() {
-  const earliest = getEarliestTransactionDate();
-  if (!earliest) return [0];
-  const list = sheetToObjects(SHEET_NAMES.PENJUALAN_FULL);
-  const today = new Date();
-  const days = Math.max(1, Math.round((today - earliest) / 86400000) + 1);
+function buildDateSeries(startDate, endDate) {
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  const days = Math.max(1, Math.round((end - start) / 86400000) + 1);
   const result = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const target = formatDateOnly(d);
-    const total = list.filter(p => extractDateOnly(p.Tanggal) === target)
-      .reduce((sum, p) => sum + Number(p.TotalHarga || 0), 0);
-    result.push(total);
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    result.push(formatDateOnly(d));
   }
   return result;
 }
 
-function getPembelianSparklineValues() {
-  const earliest = getEarliestTransactionDate();
-  if (!earliest) return [0];
-  const list = sheetToObjects(SHEET_NAMES.PEMBELIAN_FULL);
-  const today = new Date();
-  const days = Math.max(1, Math.round((today - earliest) / 86400000) + 1);
-  const result = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const target = formatDateOnly(d);
-    const total = list.filter(p => extractDateOnly(p.Tanggal) === target)
-      .reduce((sum, p) => sum + Number(p.TotalHarga || 0), 0);
-    result.push(total);
+function sparklineValuesFor(sheetName, startDate, endDate) {
+  const list = sheetToObjects(sheetName);
+  let dates;
+  if (startDate && endDate) {
+    dates = buildDateSeries(startDate, endDate);
+  } else {
+    const earliest = getEarliestTransactionDate();
+    if (!earliest) return [0];
+    dates = buildDateSeries(formatDateOnly(earliest), formatDateOnly(new Date()));
   }
-  return result;
+  return dates.map(target =>
+    list.filter(p => extractDateOnly(p.Tanggal) === target)
+      .reduce((sum, p) => sum + Number(p.TotalHarga || 0), 0)
+  );
 }
 
-function getMarginSparklineValues() {
-  const penjualan = getPenjualanSparklineValues();
-  const pembelian = getPembelianSparklineValues();
+function getPenjualanSparklineValues(startDate, endDate) {
+  return sparklineValuesFor(SHEET_NAMES.PENJUALAN_FULL, startDate, endDate);
+}
+
+function getPembelianSparklineValues(startDate, endDate) {
+  return sparklineValuesFor(SHEET_NAMES.PEMBELIAN_FULL, startDate, endDate);
+}
+
+function getMarginSparklineValues(startDate, endDate) {
+  const penjualan = getPenjualanSparklineValues(startDate, endDate);
+  const pembelian = getPembelianSparklineValues(startDate, endDate);
   return penjualan.map((v, i) => v - (pembelian[i] || 0));
 }
 
@@ -1421,9 +1463,9 @@ function getMarginSparklineValues() {
  * Top 5 Merk berdasarkan total nominal Penjualan (field Merk di
  * PenjualanTransaksi — nama brand/produk emas yang terjual).
  */
-function getTopMerkPenjualan(limit) {
+function getTopMerkPenjualan(limit, startDate, endDate) {
   limit = limit || 5;
-  const list = sheetToObjects(SHEET_NAMES.PENJUALAN_FULL).filter(p => p.Merk);
+  const list = filterByPeriod(sheetToObjects(SHEET_NAMES.PENJUALAN_FULL), startDate, endDate).filter(p => p.Merk);
   const grouped = {};
   let total = 0;
   list.forEach(p => {
