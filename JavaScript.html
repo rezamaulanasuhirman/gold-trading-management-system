@@ -1653,6 +1653,14 @@
     if (printDateEl) printDateEl.textContent = data.tanggalLabel;
 
     document.getElementById('lap-kpi-penjualan').textContent = formatRupiah(data.penjualan.summary.totalNominal);
+    document.getElementById('lap-kpi-penjualan-sub').textContent =
+      formatGram(data.penjualan.summary.totalGram) + ' • ' + (data.penjualan.summary.jumlahInvoice || 0) + ' trx';
+    const totalPenjualanTrading = data.penjualan.summary.totalNominal || 0;
+    const totalPembelianTrading = data.pembelian.summary.totalNominal || 0;
+    const marginPenjualanNominal = totalPenjualanTrading - totalPembelianTrading;
+    const marginPenjualanPercent = totalPenjualanTrading ? (marginPenjualanNominal / totalPenjualanTrading) * 100 : 0;
+    document.getElementById('lap-kpi-penjualan-margin').textContent =
+      'Margin ' + formatRupiah(marginPenjualanNominal) + ' • ' + marginPenjualanPercent.toLocaleString('id-ID', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + '%';
     document.getElementById('lap-kpi-pembelian').textContent = formatRupiah(data.pembelian.summary.totalNominal);
     document.getElementById('lap-kpi-cheapest').textContent = data.cheapestSupplier
       ? data.cheapestSupplier.nama + ' (' + formatRupiah(data.cheapestSupplier.harga) + ')'
