@@ -2310,8 +2310,12 @@ function getLaporanHarianData(dateStr) {
   const sumberData = getSumberDataLive(dateStr);
   const cheapestSupplier = getCheapestFromSumberData(sumberData);
 
-  // --- Piutang (LIVE dari sheet Rekap, bukan dari sheet Outstanding) ---
-  const piutang = getPiutangLive();
+  // --- Piutang: HARUS sama persis dengan Menu Piutang Supplier & Dashboard
+  // Utama, jadi reuse getPiutangSummary() (sumber: sheet Outstanding,
+  // status = "Outstanding"), BUKAN getPiutangLive() (sheet "Rekap" di
+  // spreadsheet eksternal) yang sebelumnya dipakai di sini dan
+  // menyebabkan angka Laporan Harian berbeda dari Piutang Supplier. ---
+  const piutang = getPiutangSummary();
 
   // --- Penetapan Harga: LIVE dari Price Discovery V3 (Keputusan Harga & Buyback) ---
   const keputusan = getKeputusanHargaLive(dateStr);
