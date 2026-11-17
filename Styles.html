@@ -2461,4 +2461,252 @@
   .pdfph-wave.pdfph-wave-fallback { background-image: none !important; }
   .pdfph-wave.pdfph-wave-fallback svg { display: block !important; }
   .pdfph-wave svg { display: none; position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; }
+
+  /* ============================================================
+     LAPORAN REKAP TRANSAKSI BULION TRADING — REDESIGN (rbt-*)
+     Semua selector di-scope ke #page-laporan-rekap-egr supaya TIDAK
+     memengaruhi halaman/menu lain. Hanya tampilan; data binding & ID
+     elemen existing tidak berubah. Ditaruh paling akhir supaya menang
+     dari override global (body 19px !important, dsb).
+     ============================================================ */
+  #page-laporan-rekap-egr .rbt-report {
+    --rbt-green-dark: #006B3C;
+    --rbt-green: #008A45;
+    --rbt-green-bright: #25B54A;
+    --rbt-green-pale: #EAF8ED;
+    --rbt-border: #D6E8DD;
+    --rbt-text: #17212B;
+    --rbt-text-2: #5B6573;
+    max-width: 1240px;
+    background: #FFFFFF;
+    color: var(--rbt-text);
+    padding: 0 0 20px;
+    border-radius: 18px;
+    overflow: hidden;
+    font-size: 16px;
+    line-height: 1.35;
+  }
+  #page-laporan-rekap-egr .rbt-report > .lap-section { margin: 18px 20px 0; }
+  #page-laporan-rekap-egr .rbt-report .material-symbols-rounded { line-height: 1; }
+
+  /* ---------- Header ---------- */
+  #page-laporan-rekap-egr .rbt-header {
+    position: relative; overflow: hidden;
+    background: linear-gradient(100deg, #FFFFFF 0%, #F4FBF5 40%, #DCF2E1 100%);
+    padding: 20px 28px 22px;
+    border-bottom: 1px solid var(--rbt-border);
+  }
+  #page-laporan-rekap-egr .rbt-header-curve {
+    position: absolute; border-radius: 50%; pointer-events: none;
+  }
+  #page-laporan-rekap-egr .rbt-header-curve-1 { width: 760px; height: 760px; right: -260px; top: -610px; background: rgba(37,181,74,0.10); }
+  #page-laporan-rekap-egr .rbt-header-curve-2 { width: 520px; height: 520px; right: -170px; top: -330px; border: 2px solid rgba(37,181,74,0.22); }
+  #page-laporan-rekap-egr .rbt-header-curve-3 { width: 900px; height: 900px; left: 30%; top: 120px; background: rgba(37,181,74,0.07); }
+  #page-laporan-rekap-egr .rbt-org,
+  #page-laporan-rekap-egr .rbt-header-main { position: relative; z-index: 1; }
+  #page-laporan-rekap-egr .rbt-org { display: flex; align-items: center; gap: 14px; }
+  #page-laporan-rekap-egr .rbt-logo { display: inline-flex; align-items: center; gap: 6px; }
+  #page-laporan-rekap-egr .rbt-logo-mark { width: 38px; height: 24px; display: block; }
+  #page-laporan-rekap-egr .rbt-logo-text { font-size: 21px; font-weight: 700; color: var(--rbt-green-dark); letter-spacing: -.01em; }
+  #page-laporan-rekap-egr .rbt-org-sep { width: 1px; height: 34px; background: var(--rbt-text-2); opacity: .45; }
+  #page-laporan-rekap-egr .rbt-org-unit { font-size: 14.5px; font-weight: 500; color: var(--rbt-text); line-height: 1.3; }
+  #page-laporan-rekap-egr .rbt-header-main {
+    display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  #page-laporan-rekap-egr .rbt-title {
+    margin: 0; font-size: 34px; font-weight: 700; line-height: 1.15; color: #0F3D26; letter-spacing: -.01em;
+  }
+  #page-laporan-rekap-egr .rbt-period {
+    display: inline-flex; align-items: center; gap: 14px;
+    background: #FFFFFF; border-radius: 14px; padding: 12px 20px;
+    box-shadow: 0 4px 14px rgba(0,107,60,0.10);
+  }
+  #page-laporan-rekap-egr .rbt-period-icon { font-size: 32px !important; color: var(--rbt-green); }
+  #page-laporan-rekap-egr .rbt-period-text { display: flex; flex-direction: column; gap: 2px; }
+  #page-laporan-rekap-egr .rbt-period-label { font-size: 14px; font-weight: 500; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-period-value { font-size: 17px; font-weight: 700; color: var(--rbt-text); }
+
+  /* ---------- 4 KPI card ---------- */
+  #page-laporan-rekap-egr .rbt-kpi-row {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
+    margin: 18px 20px 0;
+  }
+  #page-laporan-rekap-egr .rbt-kpi {
+    background: #FFFFFF; border: 1.5px solid var(--rbt-border); border-radius: 14px;
+    padding: 14px 18px 16px; min-width: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  #page-laporan-rekap-egr .rbt-kpi-egr { background: #F2FBF3; border: 2px solid #7FD18F; }
+  #page-laporan-rekap-egr .rbt-kpi-head { display: flex; align-items: center; gap: 12px; }
+  #page-laporan-rekap-egr .rbt-kpi-icon {
+    width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #DDF3E2; color: var(--rbt-green);
+  }
+  #page-laporan-rekap-egr .rbt-kpi-icon .material-symbols-rounded { font-size: 28px !important; }
+  #page-laporan-rekap-egr .rbt-kpi-label { font-size: 15.5px; font-weight: 500; color: var(--rbt-text); line-height: 1.25; }
+  #page-laporan-rekap-egr .rbt-kpi-value {
+    font-size: clamp(24px, 2.1vw, 34px); font-weight: 800; color: var(--rbt-text); line-height: 1.15;
+    letter-spacing: -.01em; white-space: nowrap;
+  }
+  #page-laporan-rekap-egr .rbt-kpi-value .etf-gram-main { font-size: clamp(24px, 2.1vw, 34px); font-weight: 800; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-kpi-value .etf-gram-decimal { font-size: 20px; font-weight: 700; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-kpi-value .etf-gram-unit { font-size: 22px; font-weight: 600; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-kpi-sub { font-size: 15.5px; font-weight: 500; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-kpi-sub-up { color: var(--rbt-green); font-weight: 600; font-size: 17px; }
+  #page-laporan-rekap-egr .rbt-kpi-sub-note { color: var(--rbt-text); font-size: 14.5px; }
+
+  /* ---------- Panel (header hijau gelap) ---------- */
+  #page-laporan-rekap-egr .rbt-grid-2 {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px;
+    margin: 18px 20px 0; align-items: stretch;
+  }
+  #page-laporan-rekap-egr .rbt-report > .rbt-panel { margin: 18px 20px 0; }
+  #page-laporan-rekap-egr .rbt-panel {
+    background: #FFFFFF; border: 1px solid var(--rbt-border); border-radius: 14px;
+    overflow: hidden; min-width: 0; display: flex; flex-direction: column;
+  }
+  #page-laporan-rekap-egr .rbt-panel-head {
+    background: var(--rbt-green-dark); color: #FFFFFF;
+    padding: 11px 18px; font-size: 17px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  #page-laporan-rekap-egr .rbt-panel-head .material-symbols-rounded { font-size: 24px !important; }
+  #page-laporan-rekap-egr .rbt-panel-sub { font-size: 13.5px; font-weight: 400; opacity: .9; white-space: nowrap; }
+
+  /* Realisasi: gauge kiri, 2 kotak kanan */
+  #page-laporan-rekap-egr .rbt-real-body {
+    display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 14px; padding: 12px 16px 16px; align-items: center; flex: 1;
+  }
+  #page-laporan-rekap-egr .rbt-gauge { width: 100%; min-width: 0; }
+  #page-laporan-rekap-egr .rbt-gauge svg { width: 100%; height: auto; display: block; }
+  #page-laporan-rekap-egr .rbt-real-stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  #page-laporan-rekap-egr .rbt-real-box {
+    background: #F2F7F3; border-radius: 10px; padding: 10px 16px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  #page-laporan-rekap-egr .rbt-real-label { font-size: 15px; font-weight: 500; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-real-value { font-size: 28px; font-weight: 800; color: var(--rbt-text); line-height: 1.15; overflow-wrap: anywhere; }
+  #page-laporan-rekap-egr .rbt-real-sub { font-size: 14.5px; font-weight: 500; color: var(--rbt-text); }
+
+  /* Ringkasan Saldo EGR */
+  #page-laporan-rekap-egr .rbt-saldo { padding: 8px 16px 16px; display: flex; flex-direction: column; flex: 1; justify-content: center; }
+  #page-laporan-rekap-egr .rbt-saldo-row {
+    display: grid; grid-template-columns: minmax(110px, 1fr) auto minmax(180px, auto);
+    align-items: baseline; gap: 8px 18px; padding: 10px 4px;
+    border-bottom: 1px solid var(--rbt-border);
+  }
+  #page-laporan-rekap-egr .rbt-saldo-label { font-size: 16.5px; font-weight: 500; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-saldo-gram { text-align: right; white-space: nowrap; }
+  #page-laporan-rekap-egr .rbt-saldo-gram .etf-gram-main { font-size: 24px; font-weight: 600; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-saldo-gram .etf-gram-decimal { font-size: 15px; font-weight: 500; color: var(--rbt-text-2); }
+  #page-laporan-rekap-egr .rbt-saldo-gram .etf-gram-unit { font-size: 15px; font-weight: 500; color: var(--rbt-text-2); }
+  #page-laporan-rekap-egr .rbt-saldo-rp { text-align: right; font-size: 16.5px; font-weight: 500; color: var(--rbt-text); white-space: nowrap; }
+  #page-laporan-rekap-egr .rbt-saldo-sisa {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    background: var(--rbt-green-pale); border-radius: 12px; padding: 8px 8px 8px 18px; margin-top: 12px;
+  }
+  #page-laporan-rekap-egr .rbt-saldo-sisa-label { font-size: 20px; font-weight: 700; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-saldo-sisa-box {
+    background: linear-gradient(180deg, var(--rbt-green) 0%, var(--rbt-green-dark) 100%);
+    color: #FFFFFF; border-radius: 10px; padding: 8px 22px; min-width: 200px; text-align: right; white-space: nowrap;
+    box-shadow: 0 3px 8px rgba(0,107,60,0.25);
+  }
+  #page-laporan-rekap-egr .rbt-saldo-sisa-box,
+  #page-laporan-rekap-egr .rbt-saldo-sisa-box .etf-gram-main { font-size: 30px; font-weight: 800; color: #FFFFFF; }
+  #page-laporan-rekap-egr .rbt-saldo-sisa-box .etf-gram-decimal { font-size: 18px; font-weight: 700; color: #FFFFFF; }
+  #page-laporan-rekap-egr .rbt-saldo-sisa-box .etf-gram-unit { font-size: 16px; font-weight: 500; color: #FFFFFF; opacity: .9; }
+
+  /* ---------- Tabel Rekap Penjualan per Buyer ---------- */
+  #page-laporan-rekap-egr .rbt-table-wrap { overflow-x: auto; padding: 10px 14px 14px; }
+  #page-laporan-rekap-egr .rbt-table {
+    width: 100%; min-width: 820px; border-collapse: separate; border-spacing: 0;
+    font-size: 16.5px; color: var(--rbt-text);
+  }
+  #page-laporan-rekap-egr .rbt-table th {
+    background: var(--rbt-green-pale); color: var(--rbt-text);
+    font-size: 15.5px; font-weight: 600; text-align: left; line-height: 1.2;
+    padding: 10px 16px; border: none;
+  }
+  #page-laporan-rekap-egr .rbt-table th:first-child { border-radius: 10px 0 0 10px; }
+  #page-laporan-rekap-egr .rbt-table th:last-child { border-radius: 0 10px 10px 0; }
+  #page-laporan-rekap-egr .rbt-table td { padding: 8px 16px; border: none; vertical-align: middle; font-weight: 400; }
+  #page-laporan-rekap-egr .rbt-table tbody tr:nth-child(even):not(.rbt-total) td { background: #F5FBF6; }
+  #page-laporan-rekap-egr .rbt-table .rbt-c { text-align: center; white-space: nowrap; }
+  #page-laporan-rekap-egr .rbt-table .rbt-buyer { font-weight: 500; }
+  #page-laporan-rekap-egr .rbt-table .rbt-gram .etf-gram-main { font-size: 19px; font-weight: 600; color: var(--rbt-text); }
+  #page-laporan-rekap-egr .rbt-table .rbt-gram .etf-gram-decimal { font-size: 14px; font-weight: 500; color: var(--rbt-text-2); }
+  #page-laporan-rekap-egr .rbt-table .rbt-gram .etf-gram-unit { font-size: 14px; font-weight: 400; color: var(--rbt-text-2); }
+  #page-laporan-rekap-egr .rbt-table .rbt-col-prop { width: 30%; }
+  #page-laporan-rekap-egr .rbt-table .rbt-prop { white-space: nowrap; }
+  #page-laporan-rekap-egr .rbt-bar {
+    display: inline-block; vertical-align: middle; width: calc(100% - 96px); min-width: 120px; height: 10px;
+    background: #E3E9E5; border-radius: 6px; overflow: hidden; position: relative;
+  }
+  #page-laporan-rekap-egr .rbt-bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; display: block; border-radius: 6px;
+    /* absolute: supaya html2canvas (Download) menggambar fill DI ATAS
+       track. Warna solid (bukan gradient): html2canvas gagal render
+       gradient pada elemen lebar 0px (proporsi sangat kecil). */
+    background: #25B54A;
+  }
+  #page-laporan-rekap-egr .rbt-pct { display: inline-block; vertical-align: middle; width: 88px; text-align: right; font-weight: 500; }
+  #page-laporan-rekap-egr .rbt-table .rbt-total td {
+    background: var(--rbt-green-dark); color: #FFFFFF; font-weight: 600; font-size: 17.5px;
+    padding-top: 11px; padding-bottom: 11px;
+  }
+  #page-laporan-rekap-egr .rbt-table .rbt-total td:first-child { border-radius: 10px 0 0 10px; }
+  #page-laporan-rekap-egr .rbt-table .rbt-total td:last-child { border-radius: 0 10px 10px 0; }
+  #page-laporan-rekap-egr .rbt-table .rbt-total .etf-gram-main { font-size: 21px; font-weight: 700; color: #FFFFFF; }
+  #page-laporan-rekap-egr .rbt-table .rbt-total .etf-gram-decimal,
+  #page-laporan-rekap-egr .rbt-table .rbt-total .etf-gram-unit { color: #FFFFFF; opacity: .9; }
+  #page-laporan-rekap-egr .rbt-table .rbt-total .rbt-bar { background: rgba(255,255,255,0.3); }
+  #page-laporan-rekap-egr .rbt-table .rbt-total .rbt-bar-fill { background: #FFFFFF; }
+  #page-laporan-rekap-egr .rbt-table .rbt-total .rbt-pct { font-weight: 700; }
+  #page-laporan-rekap-egr .rbt-table .rbt-empty { text-align: center; color: var(--rbt-text-2); padding: 22px 16px; }
+
+  /* ---------- Versi Summary (Download Summary, off-screen) ---------- */
+  #page-laporan-rekap-egr .rbt-report-summary { width: 1000px; max-width: none; }
+  #page-laporan-rekap-egr .rbt-report-summary .rbt-kpi-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #page-laporan-rekap-egr .rbt-report-summary > .rbt-panel { margin: 18px 20px 0; }
+
+  /* ---------- Responsif ---------- */
+  @media (max-width: 1280px) {
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1100px) {
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-grid-2 { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-header { padding: 16px 16px 18px; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-title { font-size: 25px; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-period { width: 100%; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-kpi-row,
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-grid-2,
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) > .rbt-panel { margin-left: 12px; margin-right: 12px; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-kpi-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-kpi-value,
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-kpi-value .etf-gram-main { font-size: 28px; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-real-body { grid-template-columns: minmax(0, 1fr); }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-saldo-row { grid-template-columns: minmax(0, 1fr) auto; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-saldo-rp { grid-column: 1 / -1; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-saldo-sisa-box { min-width: 0; flex: 1; }
+    #page-laporan-rekap-egr .rbt-report:not(.rbt-report-summary) .rbt-table-wrap { padding: 8px 8px 10px; }
+  }
+
+  /* Mode export (Download Laporan PDF/Gambar) — kunci layout desktop,
+     sama prinsipnya dengan .export-mode .rkegr-* sebelumnya. */
+  #page-laporan-rekap-egr .rbt-report.export-mode { max-width: 1240px !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; margin-left: 20px !important; margin-right: 20px !important; gap: 16px !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; margin-left: 20px !important; margin-right: 20px !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode > .rbt-panel { margin-left: 20px !important; margin-right: 20px !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-real-body { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-title { font-size: 34px !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-period { width: auto !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-kpi-value,
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-kpi-value .etf-gram-main { font-size: 30px !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-saldo-row { grid-template-columns: minmax(110px, 1fr) auto minmax(180px, auto) !important; }
+  #page-laporan-rekap-egr .rbt-report.export-mode .rbt-saldo-rp { grid-column: auto !important; }
 </style>

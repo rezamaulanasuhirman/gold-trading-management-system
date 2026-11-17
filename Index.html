@@ -981,96 +981,121 @@
             </div>
           </div>
 
-          <div class="lap-container" id="rekap-egr-capture-area">
-            <div class="lap-banner">
-              <div class="lap-banner-title">Laporan Rekap Transaksi Bulion Trading</div>
-              <div class="lap-date-badge"><span class="material-symbols-rounded" style="font-size:16px;">calendar_today</span> <span id="rekap-egr-print-date">Pilih rentang tanggal, lalu klik Tampilkan</span></div>
-            </div>
-
-            <!-- Realisasi Nominal Transaksi Perdagangan 2026 — GABUNGAN
-                 Trading + EGR (KPI perdagangan keseluruhan), TIDAK ikut
-                 filter Buyer. Section lain di halaman ini TETAP Laporan
-                 Rekap EGR, tidak menampilkan detail Trading. -->
-            <div class="lap-section">
-              <div class="lap-section-header green"><span class="material-symbols-rounded">military_tech</span> Realisasi Nominal Transaksi Perdagangan 2026 <span class="rkegr-subtitle">(Trading + EGR)</span></div>
-              <div class="rkegr-kpi-row">
-                <div class="rkegr-kpi-cell rkegr-kpi-gauge">
-                  <div class="rkegr-gauge-box" id="rkegr-gauge-box"></div>
-                </div>
-                <div class="rkegr-kpi-stack">
-                  <div class="rkegr-kpi-cell">
-                    <span class="rkegr-kpi-label">Target 2026</span>
-                    <span class="rkegr-kpi-value" id="rkegr-kpi-target">Rp0</span>
-                  </div>
-                  <div class="rkegr-kpi-cell">
-                    <span class="rkegr-kpi-label">Realisasi Nominal</span>
-                    <span class="rkegr-kpi-value" id="rkegr-kpi-realisasi">Rp0</span>
-                    <span class="rkegr-kpi-sub" id="rkegr-kpi-realisasi-pct">0,0% dari target</span>
-                  </div>
-                </div>
+          <div class="lap-container rbt-report" id="rekap-egr-capture-area">
+            <!-- Header laporan (redesign) — logo, identitas organisasi,
+                 judul, & Periode Laporan (#...-print-date diisi JS existing). -->
+            <div class="rbt-header">
+              <span class="rbt-header-curve rbt-header-curve-1" aria-hidden="true"></span>
+              <span class="rbt-header-curve rbt-header-curve-2" aria-hidden="true"></span>
+              <span class="rbt-header-curve rbt-header-curve-3" aria-hidden="true"></span>
+              <div class="rbt-org">
+                <span class="rbt-logo">
+                  <svg class="rbt-logo-mark" viewBox="0 0 44 28" aria-hidden="true"><ellipse cx="14" cy="14" rx="12" ry="12" fill="#25B54A"/><ellipse cx="30" cy="14" rx="12" ry="12" fill="#006B3C" fill-opacity=".9"/></svg>
+                  <span class="rbt-logo-text">Pegadaian</span>
+                </span>
+                <span class="rbt-org-sep" aria-hidden="true"></span>
+                <span class="rbt-org-unit">Divisi Bisnis Bulion<br>Departemen Trading</span>
               </div>
-            </div>
-
-            <div class="lap-section">
-              <div class="lap-section-header green"><span class="material-symbols-rounded">bolt</span> Transaksi Hari Ini</div>
-              <div class="egrtoday-card">
-                <div class="egrtoday-item">
-                  <div class="egrtoday-icon"><span class="material-symbols-rounded">schedule</span></div>
-                  <div class="egrtoday-text">
-                    <span class="egrtoday-label">Waktu Saat Ini</span>
-                    <span class="egrtoday-clock-value" id="rekap-egr-today-clock">Pukul --:--:-- WIB</span>
-                  </div>
-                </div>
-                <div class="egrtoday-item">
-                  <div class="egrtoday-icon gold"><span class="material-symbols-rounded">payments</span></div>
-                  <div class="egrtoday-text">
-                    <span class="egrtoday-label">Nilai Transaksi</span>
-                    <span class="egrtoday-value" id="rekap-egr-today-rupiah">Rp0</span>
-                  </div>
-                </div>
-                <div class="egrtoday-item">
-                  <div class="egrtoday-icon"><span class="material-symbols-rounded">scale</span></div>
-                  <div class="egrtoday-text">
-                    <span class="egrtoday-label">Gramasi</span>
-                    <span class="egrtoday-value" id="rekap-egr-today-gram">0,0000 Gram</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="lap-section">
-              <div class="lap-section-header green"><span class="material-symbols-rounded">account_balance_wallet</span> Ringkasan Saldo EGR</div>
-              <div class="egrsaldo-card">
-                <div class="egrsaldo-row">
-                  <span class="egrsaldo-label">Saldo EGR</span>
-                  <span class="egrsaldo-values">
-                    <span class="egrsaldo-gram" id="rekap-egr-saldo-gram">-</span>
-                    <span class="egrsaldo-rupiah" id="rekap-egr-saldo-rupiah">-</span>
-                  </span>
-                </div>
-                <div class="egrsaldo-row">
-                  <span class="egrsaldo-label">Total Transaksi</span>
-                  <span class="egrsaldo-values">
-                    <span class="egrsaldo-gram" id="rekap-egr-total-gram">-</span>
-                    <span class="egrsaldo-rupiah" id="rekap-egr-total-rupiah">-</span>
-                  </span>
-                </div>
-                <div class="egrsaldo-divider"></div>
-                <div class="egrsaldo-row egrsaldo-row-highlight">
-                  <span class="egrsaldo-label">Saldo Tersisa</span>
-                  <span class="egrsaldo-values">
-                    <span class="egrsaldo-gram" id="rekap-egr-sisa-gram">-</span>
+              <div class="rbt-header-main">
+                <h2 class="rbt-title">Laporan Rekap<br>Transaksi Bulion Trading</h2>
+                <div class="rbt-period">
+                  <span class="material-symbols-rounded rbt-period-icon">calendar_month</span>
+                  <span class="rbt-period-text">
+                    <span class="rbt-period-label">Periode Laporan</span>
+                    <span class="rbt-period-value" id="rekap-egr-print-date">Pilih rentang tanggal, lalu klik Tampilkan</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div class="lap-section">
-              <div class="lap-section-header green"><span class="material-symbols-rounded">groups</span> Rekap Penjualan per Buyer</div>
-              <div class="lap-section-body" style="overflow-x:auto;">
-                <table class="data-table">
-                  <thead><tr><th>Buyer</th><th>Jumlah Transaksi</th><th>Total Gramasi</th><th>Total Nilai Transaksi</th></tr></thead>
-                  <tbody id="rekap-egr-buyer-body"><tr><td colspan="4" class="recent-empty">Pilih rentang tanggal, lalu klik Tampilkan</td></tr></tbody>
+            <!-- Empat KPI card: 2 card EGR (hari ini, border hijau) lalu 2 KPI
+                 kumulatif (Realisasi & Target 2026, diisi loadRkEgrGauge_). -->
+            <div class="rbt-kpi-row">
+              <!-- Card 1 — Nilai Transaksi Hari Ini (EGR) -->
+              <div class="rbt-kpi rbt-kpi-egr">
+                <div class="rbt-kpi-head">
+                  <span class="rbt-kpi-icon"><span class="material-symbols-rounded">paid</span></span>
+                  <span class="rbt-kpi-label">Nilai Transaksi<br>Hari Ini (EGR)</span>
+                </div>
+                <div class="rbt-kpi-value" id="rekap-egr-today-rupiah">Rp0</div>
+                <div class="rbt-kpi-sub" id="rekap-egr-today-clock">Pukul --:--:-- WIB</div>
+              </div>
+              <!-- Card 2 — Total Transaksi Hari Ini (EGR) -->
+              <div class="rbt-kpi rbt-kpi-egr">
+                <div class="rbt-kpi-head">
+                  <span class="rbt-kpi-icon"><span class="material-symbols-rounded">stacks</span></span>
+                  <span class="rbt-kpi-label">Total Transaksi<br>Hari Ini (EGR)</span>
+                </div>
+                <div class="rbt-kpi-value rbt-kpi-gram" id="rekap-egr-today-gram">0 Gram</div>
+              </div>
+              <!-- Card 3 — Realisasi Nominal Transaksi Perdagangan -->
+              <div class="rbt-kpi">
+                <div class="rbt-kpi-head">
+                  <span class="rbt-kpi-icon"><span class="material-symbols-rounded">payments</span></span>
+                  <span class="rbt-kpi-label">Realisasi Nominal<br>Transaksi Perdagangan</span>
+                </div>
+                <div class="rbt-kpi-value" id="rkegr-card-realisasi">Rp0</div>
+                <div class="rbt-kpi-sub rbt-kpi-sub-up" id="rkegr-card-realisasi-pct">0% dari target</div>
+              </div>
+              <!-- Card 4 — Target 2026 -->
+              <div class="rbt-kpi">
+                <div class="rbt-kpi-head">
+                  <span class="rbt-kpi-icon"><span class="material-symbols-rounded">track_changes</span></span>
+                  <span class="rbt-kpi-label">Target 2026</span>
+                </div>
+                <div class="rbt-kpi-value" id="rkegr-card-target">Rp0</div>
+                <div class="rbt-kpi-sub rbt-kpi-sub-note">Target transaksi perdagangan (Trading + EGR)</div>
+              </div>
+            </div>
+
+            <div class="rbt-grid-2">
+              <!-- Realisasi Transaksi Perdagangan 2026 — GABUNGAN Trading + EGR,
+                   TIDAK ikut filter Buyer (lihat loadRkEgrGauge_). -->
+              <div class="rbt-panel">
+                <div class="rbt-panel-head"><span class="material-symbols-rounded">bar_chart</span> Realisasi Transaksi Perdagangan 2026 <span class="rbt-panel-sub">(Trading + EGR)</span></div>
+                <div class="rbt-real-body">
+                  <div class="rbt-gauge" id="rkegr-gauge-box"></div>
+                  <div class="rbt-real-stack">
+                    <div class="rbt-real-box">
+                      <span class="rbt-real-label">Target 2026</span>
+                      <span class="rbt-real-value" id="rkegr-kpi-target">Rp0</span>
+                    </div>
+                    <div class="rbt-real-box">
+                      <span class="rbt-real-label">Realisasi Nominal</span>
+                      <span class="rbt-real-value" id="rkegr-kpi-realisasi">Rp0</span>
+                      <span class="rbt-real-sub" id="rkegr-kpi-realisasi-pct">0,0% dari target</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rbt-panel rbt-panel-saldo">
+                <div class="rbt-panel-head"><span class="material-symbols-rounded">receipt_long</span> Ringkasan Saldo EGR</div>
+                <div class="rbt-saldo">
+                  <div class="rbt-saldo-row">
+                    <span class="rbt-saldo-label">Saldo EGR</span>
+                    <span class="rbt-saldo-gram" id="rekap-egr-saldo-gram">-</span>
+                    <span class="rbt-saldo-rp" id="rekap-egr-saldo-rupiah">-</span>
+                  </div>
+                  <div class="rbt-saldo-row">
+                    <span class="rbt-saldo-label">Total Transaksi</span>
+                    <span class="rbt-saldo-gram" id="rekap-egr-total-gram">-</span>
+                    <span class="rbt-saldo-rp" id="rekap-egr-total-rupiah">-</span>
+                  </div>
+                  <div class="rbt-saldo-sisa">
+                    <span class="rbt-saldo-sisa-label">Saldo Tersisa</span>
+                    <span class="rbt-saldo-sisa-box" id="rekap-egr-sisa-gram">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rbt-panel">
+              <div class="rbt-panel-head"><span class="material-symbols-rounded">groups</span> Rekap Penjualan per Buyer</div>
+              <div class="rbt-table-wrap">
+                <table class="rbt-table">
+                  <thead><tr><th>Buyer</th><th class="rbt-c">Jumlah<br>Transaksi</th><th class="rbt-c">Total Gramasi</th><th class="rbt-c">Total Nilai Transaksi</th><th class="rbt-c rbt-col-prop">Proporsi Nilai</th></tr></thead>
+                  <tbody id="rekap-egr-buyer-body"><tr><td colspan="5" class="rbt-empty">Pilih rentang tanggal, lalu klik Tampilkan</td></tr></tbody>
                 </table>
               </div>
             </div>
@@ -1094,61 +1119,67 @@
 
           <!-- Versi Summary (tersembunyi, off-screen) — dipakai tombol Download Summary: hanya judul, periode, & scorecard, tanpa rekap per buyer -->
           <div id="rekap-egr-summary-capture-area" style="position:absolute; left:-9999px; top:0;">
-            <div class="lap-container">
-              <div class="lap-banner">
-                <div class="lap-banner-title">Laporan Rekap Transaksi Bulion Trading</div>
-                <div class="lap-date-badge"><span class="material-symbols-rounded" style="font-size:16px;">calendar_today</span> <span id="rekap-egr-sum-print-date">-</span></div>
-              </div>
-              <div class="lap-section">
-                <div class="lap-section-header green"><span class="material-symbols-rounded">bolt</span> Transaksi Hari Ini</div>
-                <div class="egrtoday-card">
-                  <div class="egrtoday-item">
-                    <div class="egrtoday-icon"><span class="material-symbols-rounded">scale</span></div>
-                    <div class="egrtoday-text">
-                      <span class="egrtoday-label">Gramasi</span>
-                      <span class="egrtoday-value" id="rekap-egr-sum-today-gram">0,0000 Gram</span>
-                    </div>
-                  </div>
-                  <div class="egrtoday-item">
-                    <div class="egrtoday-icon gold"><span class="material-symbols-rounded">payments</span></div>
-                    <div class="egrtoday-text">
-                      <span class="egrtoday-label">Nilai Transaksi</span>
-                      <span class="egrtoday-value" id="rekap-egr-sum-today-rupiah">Rp0</span>
-                    </div>
-                  </div>
-                  <div class="egrtoday-item">
-                    <div class="egrtoday-icon"><span class="material-symbols-rounded">schedule</span></div>
-                    <div class="egrtoday-text">
-                      <span class="egrtoday-label">Waktu Saat Ini</span>
-                      <span class="egrtoday-clock-value" id="rekap-egr-sum-today-clock">Pukul --:--:-- WIB</span>
-                    </div>
+            <div class="lap-container rbt-report rbt-report-summary">
+              <!-- Header laporan (redesign) — logo, identitas organisasi,
+                   judul, & Periode Laporan (#...-print-date diisi JS existing). -->
+              <div class="rbt-header">
+                <span class="rbt-header-curve rbt-header-curve-1" aria-hidden="true"></span>
+                <span class="rbt-header-curve rbt-header-curve-2" aria-hidden="true"></span>
+                <span class="rbt-header-curve rbt-header-curve-3" aria-hidden="true"></span>
+                <div class="rbt-org">
+                  <span class="rbt-logo">
+                    <svg class="rbt-logo-mark" viewBox="0 0 44 28" aria-hidden="true"><ellipse cx="14" cy="14" rx="12" ry="12" fill="#25B54A"/><ellipse cx="30" cy="14" rx="12" ry="12" fill="#006B3C" fill-opacity=".9"/></svg>
+                    <span class="rbt-logo-text">Pegadaian</span>
+                  </span>
+                  <span class="rbt-org-sep" aria-hidden="true"></span>
+                  <span class="rbt-org-unit">Divisi Bisnis Bulion<br>Departemen Trading</span>
+                </div>
+                <div class="rbt-header-main">
+                  <h2 class="rbt-title">Laporan Rekap<br>Transaksi Bulion Trading</h2>
+                  <div class="rbt-period">
+                    <span class="material-symbols-rounded rbt-period-icon">calendar_month</span>
+                    <span class="rbt-period-text">
+                      <span class="rbt-period-label">Periode Laporan</span>
+                      <span class="rbt-period-value" id="rekap-egr-sum-print-date">-</span>
+                    </span>
                   </div>
                 </div>
               </div>
-
-              <div class="lap-section">
-                <div class="lap-section-header green"><span class="material-symbols-rounded">account_balance_wallet</span> Ringkasan Saldo EGR</div>
-                <div class="egrsaldo-card">
-                  <div class="egrsaldo-row">
-                    <span class="egrsaldo-label">Saldo EGR</span>
-                    <span class="egrsaldo-values">
-                      <span class="egrsaldo-gram" id="rekap-egr-sum-saldo-gram">-</span>
-                      <span class="egrsaldo-rupiah" id="rekap-egr-sum-saldo-rupiah">-</span>
-                    </span>
+              <div class="rbt-kpi-row rbt-kpi-row-2">
+                <!-- Card 1 — Nilai Transaksi Hari Ini (EGR) -->
+                <div class="rbt-kpi rbt-kpi-egr">
+                  <div class="rbt-kpi-head">
+                    <span class="rbt-kpi-icon"><span class="material-symbols-rounded">paid</span></span>
+                    <span class="rbt-kpi-label">Nilai Transaksi<br>Hari Ini (EGR)</span>
                   </div>
-                  <div class="egrsaldo-row">
-                    <span class="egrsaldo-label">Total Transaksi</span>
-                    <span class="egrsaldo-values">
-                      <span class="egrsaldo-gram" id="rekap-egr-sum-total-gram">-</span>
-                      <span class="egrsaldo-rupiah" id="rekap-egr-sum-total-rupiah">-</span>
-                    </span>
+                  <div class="rbt-kpi-value" id="rekap-egr-sum-today-rupiah">Rp0</div>
+                  <div class="rbt-kpi-sub" id="rekap-egr-sum-today-clock">Pukul --:--:-- WIB</div>
+                </div>
+                <!-- Card 2 — Total Transaksi Hari Ini (EGR) -->
+                <div class="rbt-kpi rbt-kpi-egr">
+                  <div class="rbt-kpi-head">
+                    <span class="rbt-kpi-icon"><span class="material-symbols-rounded">stacks</span></span>
+                    <span class="rbt-kpi-label">Total Transaksi<br>Hari Ini (EGR)</span>
                   </div>
-                  <div class="egrsaldo-divider"></div>
-                  <div class="egrsaldo-row egrsaldo-row-highlight">
-                    <span class="egrsaldo-label">Saldo Tersisa</span>
-                    <span class="egrsaldo-values">
-                      <span class="egrsaldo-gram" id="rekap-egr-sum-sisa-gram">-</span>
-                    </span>
+                  <div class="rbt-kpi-value rbt-kpi-gram" id="rekap-egr-sum-today-gram">0 Gram</div>
+                </div>
+              </div>
+              <div class="rbt-panel rbt-panel-saldo">
+                <div class="rbt-panel-head"><span class="material-symbols-rounded">receipt_long</span> Ringkasan Saldo EGR</div>
+                <div class="rbt-saldo">
+                  <div class="rbt-saldo-row">
+                    <span class="rbt-saldo-label">Saldo EGR</span>
+                    <span class="rbt-saldo-gram" id="rekap-egr-sum-saldo-gram">-</span>
+                    <span class="rbt-saldo-rp" id="rekap-egr-sum-saldo-rupiah">-</span>
+                  </div>
+                  <div class="rbt-saldo-row">
+                    <span class="rbt-saldo-label">Total Transaksi</span>
+                    <span class="rbt-saldo-gram" id="rekap-egr-sum-total-gram">-</span>
+                    <span class="rbt-saldo-rp" id="rekap-egr-sum-total-rupiah">-</span>
+                  </div>
+                  <div class="rbt-saldo-sisa">
+                    <span class="rbt-saldo-sisa-label">Saldo Tersisa</span>
+                    <span class="rbt-saldo-sisa-box" id="rekap-egr-sum-sisa-gram">-</span>
                   </div>
                 </div>
               </div>
