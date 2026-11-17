@@ -366,6 +366,95 @@ function setupMitraSheets() {
 }
 
 // ------------------------------------------------------------
+// MODUL MONITORING KELENGKAPAN DOKUMEN PKS SUPPLIER — jalankan
+// sekali dari editor untuk menambah 1 sheet baru. Tidak menyentuh
+// sheet lain (Supplier, dst).
+// ------------------------------------------------------------
+function addMonitoringPksSupplierModule() {
+  const id = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID');
+  if (!id) throw new Error('DB_SPREADSHEET_ID belum diset — jalankan setupDatabase() dulu.');
+  const ss = SpreadsheetApp.openById(id);
+
+  if (!ss.getSheetByName('MonitoringPKSSupplier')) {
+    const sh = ss.insertSheet('MonitoringPKSSupplier');
+    const headers = [
+      'SupplierID', 'SupplierNama', 'EDD', 'LDD', 'RencanaBisnis', 'StudiKelayakan',
+      'KajianRisiko', 'KajianLegal', 'KajianKepatuhan', 'PaktaIntegritas',
+      'Progres', 'Status', 'LinkDokumen', 'PIC', 'UpdatedAt'
+    ];
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    formatHeader(sh, headers.length);
+    sh.autoResizeColumns(1, headers.length);
+    Logger.log('Sheet "MonitoringPKSSupplier" berhasil dibuat.');
+  } else {
+    Logger.log('Sheet "MonitoringPKSSupplier" sudah ada, dilewati (tidak diubah).');
+  }
+
+  Logger.log('=== Setup Monitoring PKS Supplier selesai. Sheet existing lain tidak disentuh sama sekali. ===');
+}
+
+// ------------------------------------------------------------
+// Migrasi: tambah kolom untuk fitur "Tambah Supplier" (modal intake
+// PKS) + Download Nodin — jalankan SEKALI dari editor. Idempotent:
+// kalau kolom sudah ada, dilewati. Menambah kolom BARU di ujung
+// kanan sheet MonitoringPKSSupplier saja, tidak menghapus/mengubah
+// kolom yang sudah ada, dan tidak menyentuh sheet lain.
+// ------------------------------------------------------------
+/**
+ * Jalankan SEKALI dari editor (bukan lewat web app) untuk memicu dialog
+ * izin Google Docs/Drive yang dibutuhkan fitur Download Nodin. Web app
+ * berjalan di dalam iframe, dan dialog izin scope BARU sering gagal
+ * tampil dengan benar di situ — menjalankan ini langsung dari editor
+ * (halaman penuh, bukan iframe) menghindari masalah itu. Dokumen
+ * percobaan langsung dihapus (trash), tidak meninggalkan file apa pun.
+ */
+function authorizeDocsForNodin() {
+  const doc = DocumentApp.create('TEMP_authorize_test_' + Date.now());
+  doc.getBody().appendParagraph('Test otorisasi — aman dihapus.');
+  doc.saveAndClose();
+  const docId = doc.getId();
+
+  // Sekaligus otorisasi UrlFetchApp (dipakai generateNodinDocx untuk
+  // export ke .docx lewat Drive API v3).
+  const exportUrl = 'https://www.googleapis.com/drive/v3/files/' + docId +
+    '/export?mimeType=' + encodeURIComponent('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  const response = UrlFetchApp.fetch(exportUrl, {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  });
+
+  DriveApp.getFileById(docId).setTrashed(true);
+
+  if (response.getResponseCode() !== 200) {
+    Logger.log('Export test GAGAL (HTTP ' + response.getResponseCode() + '): ' + response.getContentText());
+    throw new Error('Export test gagal, cek log untuk detail.');
+  }
+  Logger.log('Izin Google Docs/Drive/UrlFetch berhasil diotorisasi DAN export test berhasil. Fitur Download Nodin siap dipakai.');
+}
+
+function addMonitoringPksAdditionalFields() {
+  const id = PropertiesService.getScriptProperties().getProperty('DB_SPREADSHEET_ID');
+  if (!id) throw new Error('DB_SPREADSHEET_ID belum diset — jalankan setupDatabase() dulu.');
+  const ss = SpreadsheetApp.openById(id);
+  const sh = ss.getSheetByName('MonitoringPKSSupplier');
+  if (!sh) throw new Error('Sheet "MonitoringPKSSupplier" belum ada — jalankan addMonitoringPksSupplierModule() dulu.');
+
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const newCols = ['Singkatan', 'JenisKerjaSama', 'BatasWaktu', 'TeleponPIC'].filter(c => headers.indexOf(c) === -1);
+
+  if (newCols.length === 0) {
+    Logger.log('Kolom tambahan sudah ada semua, dilewati.');
+    return;
+  }
+
+  const startCol = headers.length + 1;
+  sh.getRange(1, startCol, 1, newCols.length).setValues([newCols]);
+  formatHeader(sh, startCol + newCols.length - 1);
+  sh.autoResizeColumns(startCol, newCols.length);
+  Logger.log('Kolom baru ditambahkan ke MonitoringPKSSupplier: ' + newCols.join(', '));
+}
+
+// ------------------------------------------------------------
 // MODUL PENETAPAN HARGA (BOBOT SUPPLIER) — mengikuti prinsip
 // Gold Studio: bobot per supplier (total 100%) -> System
 // Reference Price (rata-rata tertimbang) -> Harga Jual =
@@ -404,4 +493,82 @@ function addPenetapanHargaBobotModule() {
   }
 
   Logger.log('=== Setup Penetapan Harga (Bobot Supplier) selesai. Sheet existing lain tidak disentuh sama sekali. ===');
+}
+
+// ------------------------------------------------------------
+// TRIGGER OTOMATIS — Snapshot Rekap Transaksi EGR per Sesi (12.00 &
+// 16.00 WIB). Jalankan SEKALI dari editor (pilih
+// "installEgrSesiSnapshotTriggers" di dropdown toolbar, klik Run) utk
+// memasang time-driven trigger. Idempotent — kalau trigger utk fungsi
+// yg sama sudah ada, dihapus dulu baru dipasang ulang, supaya tidak
+// pernah dobel. Trigger memanggil egrSesiSnapshot1200()/
+// egrSesiSnapshot1600() di Code.gs, yg mengambil posisi kumulatif
+// transaksi EGR SAAT TRIGGER DIJALANKAN (Apps Script bisa terlambat
+// beberapa menit dari jadwal — waktu eksekusi aktual dicatat terpisah).
+// ------------------------------------------------------------
+function installEgrSesiSnapshotTriggers() {
+  // Nama fungsi target versi SEKARANG — kalau nama fungsi ini pernah
+  // diganti di masa depan, tambahkan nama lama ke daftar ini supaya
+  // trigger dgn nama lama itu ikut dibersihkan (tidak menumpuk jadi
+  // dobel eksekusi tiap hari).
+  const targetFunctions = ['egrSesiSnapshot1200', 'egrSesiSnapshot1600'];
+
+  // 1) Periksa & log SEMUA trigger project yang ada dulu (bukan cuma
+  // milik modul ini) — supaya jelas trigger snapshot lama "ditemukan
+  // atau tidak", dan supaya trigger MODUL LAIN (apapun itu) tidak pernah
+  // ikut kehapus krn hanya trigger yg handler function-nya persis cocok
+  // dgn targetFunctions yang disentuh.
+  const allTriggers = ScriptApp.getProjectTriggers();
+  Logger.log('[EgrSesiSnapshot] Total trigger project SAAT INI: ' + allTriggers.length);
+  allTriggers.forEach(function (t) {
+    Logger.log('[EgrSesiSnapshot]   - handler="' + t.getHandlerFunction() + '" tipe=' + t.getEventType() + ' sumber=' + t.getTriggerSource());
+  });
+
+  let deletedCount = 0;
+  targetFunctions.forEach(function (fnName) {
+    const dup = allTriggers.filter(function (t) { return t.getHandlerFunction() === fnName; });
+    if (dup.length === 0) {
+      Logger.log('[EgrSesiSnapshot] Trigger snapshot lama utk "' + fnName + '" TIDAK DITEMUKAN — akan dipasang baru.');
+    } else {
+      dup.forEach(function (t) {
+        ScriptApp.deleteTrigger(t);
+        deletedCount++;
+      });
+      Logger.log('[EgrSesiSnapshot] Trigger snapshot lama utk "' + fnName + '" ditemukan (' + dup.length + ') & dihapus supaya tidak dobel.');
+    }
+  });
+  Logger.log('[EgrSesiSnapshot] Total trigger snapshot duplikat yang dihapus: ' + deletedCount + ' (trigger modul lain TIDAK disentuh).');
+
+  // 2) Pastikan zona waktu SPREADSHEET database aplikasi = Asia/Jakarta
+  // (terpisah dari zona waktu PROJECT yg sudah diset di appsscript.json)
+  // — supaya tanggal/jam yg ditampilkan di sheet EGR_Sesi_Snapshot juga
+  // konsisten, tidak pernah jatuh ke UTC.
+  const db = getDb();
+  db.setSpreadsheetTimeZone('Asia/Jakarta');
+  Logger.log('[EgrSesiSnapshot] Zona waktu project (Session.getScriptTimeZone) = ' + Session.getScriptTimeZone());
+  Logger.log('[EgrSesiSnapshot] Zona waktu spreadsheet database (setelah diset) = ' + db.getSpreadsheetTimeZone());
+
+  // 3) Pasang trigger baru — atHour + nearMinute(0) supaya target
+  // eksekusi setepat mungkin di menit ke-0 pada jam sesi (Apps Script
+  // tetap bisa terlambat beberapa menit dari jadwal ini; waktu eksekusi
+  // AKTUAL selalu dicatat terpisah di kolom WaktuEksekusi).
+  ScriptApp.newTrigger('egrSesiSnapshot1200')
+    .timeBased()
+    .atHour(12)
+    .nearMinute(0)
+    .everyDays(1)
+    .inTimezone('Asia/Jakarta')
+    .create();
+
+  ScriptApp.newTrigger('egrSesiSnapshot1600')
+    .timeBased()
+    .atHour(16)
+    .nearMinute(0)
+    .everyDays(1)
+    .inTimezone('Asia/Jakarta')
+    .create();
+
+  Logger.log('[EgrSesiSnapshot] Trigger snapshot EGR terpasang: egrSesiSnapshot1200 (~12.00 WIB) & egrSesiSnapshot1600 (~16.00 WIB), zona waktu Asia/Jakarta.');
+  Logger.log('[EgrSesiSnapshot] Apps Script dapat menjalankan trigger beberapa menit setelah jadwal — waktu eksekusi aktual dicatat otomatis di sheet EGR_Sesi_Snapshot.');
+  Logger.log('[EgrSesiSnapshot] Verifikasi lewat logEgrSesiTriggerStatus() di Code.gs kapan saja utk memastikan trigger masih terpasang.');
 }
